@@ -80,18 +80,24 @@
 /********** Constants *********/
 
 /* Link options */
-#define LINK_OPTION_TX              1
-#define LINK_OPTION_RX              2
-#define LINK_OPTION_SHARED          4
-#define LINK_OPTION_TIME_KEEPING    8
+#define LINK_OPTION_TX 1
+#define LINK_OPTION_RX 2
+#define LINK_OPTION_SHARED 4
+#define LINK_OPTION_TIME_KEEPING 8
 
 /************ Types ***********/
 
 /* 802.15.4e link types.
  * LINK_TYPE_ADVERTISING_ONLY is an extra one: for EB-only links. */
-enum link_type { LINK_TYPE_NORMAL, LINK_TYPE_ADVERTISING, LINK_TYPE_ADVERTISING_ONLY };
+enum link_type
+{
+  LINK_TYPE_NORMAL,
+  LINK_TYPE_ADVERTISING,
+  LINK_TYPE_ADVERTISING_ONLY
+};
 
-struct tsch_link {
+struct tsch_link
+{
   /* Links are stored as a list: "next" must be the first field */
   struct tsch_link *next;
   /* Unique identifier */
@@ -117,7 +123,9 @@ struct tsch_link {
   void *data;
 };
 
-struct tsch_slotframe {
+//Contains multiple slots
+struct tsch_slotframe
+{
   /* Slotframes are stored as a list: "next" must be the first field */
   struct tsch_slotframe *next;
   /* Unique identifier */
@@ -163,8 +171,8 @@ int tsch_schedule_remove_link(struct tsch_slotframe *slotframe, struct tsch_link
 int tsch_schedule_remove_link_by_timeslot(struct tsch_slotframe *slotframe, uint16_t timeslot);
 
 /* Returns the next active link after a given ASN, and a backup link (for the same ASN, with Rx flag) */
-struct tsch_link * tsch_schedule_get_next_active_link(struct tsch_asn_t *asn, uint16_t *time_offset,
-    struct tsch_link **backup_link);
+struct tsch_link *tsch_schedule_get_next_active_link(struct tsch_asn_t *asn, uint16_t *time_offset,
+                                                     struct tsch_link **backup_link);
 /* Access to slotframe list */
 struct tsch_slotframe *tsch_schedule_slotframe_head(void);
 struct tsch_slotframe *tsch_schedule_slotframe_next(struct tsch_slotframe *sf);

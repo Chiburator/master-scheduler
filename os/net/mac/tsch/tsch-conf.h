@@ -53,15 +53,20 @@
 
 /* Default IEEE 802.15.4e hopping sequences, obtained from https://gist.github.com/twatteyne/2e22ee3c1a802b685695 */
 /* 16 channels, sequence length 16 */
-#define TSCH_HOPPING_SEQUENCE_16_16 (uint8_t[]){ 16, 17, 23, 18, 26, 15, 25, 22, 19, 11, 12, 13, 24, 14, 20, 21 }
+#define TSCH_HOPPING_SEQUENCE_16_16 \
+    (uint8_t[]) { 16, 17, 23, 18, 26, 15, 25, 22, 19, 11, 12, 13, 24, 14, 20, 21 }
 /* 4 channels, sequence length 16 */
-#define TSCH_HOPPING_SEQUENCE_4_16 (uint8_t[]){ 20, 26, 25, 26, 15, 15, 25, 20, 26, 15, 26, 25, 20, 15, 20, 25 }
+#define TSCH_HOPPING_SEQUENCE_4_16 \
+    (uint8_t[]) { 20, 26, 25, 26, 15, 15, 25, 20, 26, 15, 26, 25, 20, 15, 20, 25 }
 /* 4 channels, sequence length 4 */
-#define TSCH_HOPPING_SEQUENCE_4_4 (uint8_t[]){ 15, 25, 26, 20 }
+#define TSCH_HOPPING_SEQUENCE_4_4 \
+    (uint8_t[]) { 15, 25, 26, 20 }
 /* 2 channels, sequence length 2 */
-#define TSCH_HOPPING_SEQUENCE_2_2 (uint8_t[]){ 20, 25 }
+#define TSCH_HOPPING_SEQUENCE_2_2 \
+    (uint8_t[]) { 20, 25 }
 /* 1 channel, sequence length 1 */
-#define TSCH_HOPPING_SEQUENCE_1_1 (uint8_t[]){ 26 }  //20
+#define TSCH_HOPPING_SEQUENCE_1_1 \
+    (uint8_t[]) { 26 } //20
 
 /* Default hopping sequence, used in case hopping sequence ID == 0 */
 #ifdef TSCH_CONF_DEFAULT_HOPPING_SEQUENCE
@@ -113,66 +118,66 @@
 #if TSCH_CONF_DEFAULT_TIMESLOT_LENGTH == 10000
 /* Default timeslot timing as per IEEE 802.15.4e */
 
-#define TSCH_DEFAULT_TS_CCA_OFFSET         1800
-#define TSCH_DEFAULT_TS_CCA                128
-#define TSCH_DEFAULT_TS_TX_OFFSET          2120
-#define TSCH_DEFAULT_TS_RX_OFFSET          (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
-#define TSCH_DEFAULT_TS_RX_ACK_DELAY       800
-#define TSCH_DEFAULT_TS_TX_ACK_DELAY       1000
-#define TSCH_DEFAULT_TS_RX_WAIT            TSCH_CONF_RX_WAIT
-#define TSCH_DEFAULT_TS_ACK_WAIT           400
-#define TSCH_DEFAULT_TS_RX_TX              192
-#define TSCH_DEFAULT_TS_MAX_ACK            2400
-#define TSCH_DEFAULT_TS_MAX_TX             4256
-#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH    10000
+#define TSCH_DEFAULT_TS_CCA_OFFSET 1800
+#define TSCH_DEFAULT_TS_CCA 128
+#define TSCH_DEFAULT_TS_TX_OFFSET 2120
+#define TSCH_DEFAULT_TS_RX_OFFSET (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
+#define TSCH_DEFAULT_TS_RX_ACK_DELAY 800
+#define TSCH_DEFAULT_TS_TX_ACK_DELAY 1000
+#define TSCH_DEFAULT_TS_RX_WAIT TSCH_CONF_RX_WAIT
+#define TSCH_DEFAULT_TS_ACK_WAIT 400
+#define TSCH_DEFAULT_TS_RX_TX 192
+#define TSCH_DEFAULT_TS_MAX_ACK 2400
+#define TSCH_DEFAULT_TS_MAX_TX 4256
+#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH 10000
 
 #elif TSCH_CONF_DEFAULT_TIMESLOT_LENGTH == 15000
 /* Default timeslot timing for platforms requiring 15ms slots */
 
-#define TSCH_DEFAULT_TS_CCA_OFFSET         1800
-#define TSCH_DEFAULT_TS_CCA                128
-#define TSCH_DEFAULT_TS_TX_OFFSET          4000
-#define TSCH_DEFAULT_TS_RX_OFFSET          (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
-#define TSCH_DEFAULT_TS_RX_ACK_DELAY       3600
-#define TSCH_DEFAULT_TS_TX_ACK_DELAY       4000
-#define TSCH_DEFAULT_TS_RX_WAIT            TSCH_CONF_RX_WAIT
-#define TSCH_DEFAULT_TS_ACK_WAIT           800
-#define TSCH_DEFAULT_TS_RX_TX              2072
-#define TSCH_DEFAULT_TS_MAX_ACK            2400
-#define TSCH_DEFAULT_TS_MAX_TX             4256
-#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH    15000
+#define TSCH_DEFAULT_TS_CCA_OFFSET 1800
+#define TSCH_DEFAULT_TS_CCA 128
+#define TSCH_DEFAULT_TS_TX_OFFSET 4000
+#define TSCH_DEFAULT_TS_RX_OFFSET (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
+#define TSCH_DEFAULT_TS_RX_ACK_DELAY 3600
+#define TSCH_DEFAULT_TS_TX_ACK_DELAY 4000
+#define TSCH_DEFAULT_TS_RX_WAIT TSCH_CONF_RX_WAIT
+#define TSCH_DEFAULT_TS_ACK_WAIT 800
+#define TSCH_DEFAULT_TS_RX_TX 2072
+#define TSCH_DEFAULT_TS_MAX_ACK 2400
+#define TSCH_DEFAULT_TS_MAX_TX 4256
+#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH 15000
 
 #elif TSCH_CONF_DEFAULT_TIMESLOT_LENGTH == 20000
 /* 20 ms timeslot timing for platforms requiring >10ms slots */
 
-#define TSCH_DEFAULT_TS_CCA_OFFSET         1800
-#define TSCH_DEFAULT_TS_CCA                128
-#define TSCH_DEFAULT_TS_TX_OFFSET          4000
-#define TSCH_DEFAULT_TS_RX_OFFSET          (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
-#define TSCH_DEFAULT_TS_RX_ACK_DELAY       3600
-#define TSCH_DEFAULT_TS_TX_ACK_DELAY       4000
-#define TSCH_DEFAULT_TS_RX_WAIT            TSCH_CONF_RX_WAIT
-#define TSCH_DEFAULT_TS_ACK_WAIT           800
-#define TSCH_DEFAULT_TS_RX_TX              2072
-#define TSCH_DEFAULT_TS_MAX_ACK            2400
-#define TSCH_DEFAULT_TS_MAX_TX             4256
-#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH    20000
+#define TSCH_DEFAULT_TS_CCA_OFFSET 1800
+#define TSCH_DEFAULT_TS_CCA 128
+#define TSCH_DEFAULT_TS_TX_OFFSET 4000
+#define TSCH_DEFAULT_TS_RX_OFFSET (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
+#define TSCH_DEFAULT_TS_RX_ACK_DELAY 3600
+#define TSCH_DEFAULT_TS_TX_ACK_DELAY 4000
+#define TSCH_DEFAULT_TS_RX_WAIT TSCH_CONF_RX_WAIT
+#define TSCH_DEFAULT_TS_ACK_WAIT 800
+#define TSCH_DEFAULT_TS_RX_TX 2072
+#define TSCH_DEFAULT_TS_MAX_ACK 2400
+#define TSCH_DEFAULT_TS_MAX_TX 4256
+#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH 20000
 
 #elif TSCH_CONF_DEFAULT_TIMESLOT_LENGTH == 25000
 /* 25 ms timeslot timing for platforms requiring >20ms slots to include logging*/
 
-#define TSCH_DEFAULT_TS_CCA_OFFSET         1800
-#define TSCH_DEFAULT_TS_CCA                128
-#define TSCH_DEFAULT_TS_TX_OFFSET          4000
-#define TSCH_DEFAULT_TS_RX_OFFSET          (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
-#define TSCH_DEFAULT_TS_RX_ACK_DELAY       3600
-#define TSCH_DEFAULT_TS_TX_ACK_DELAY       4000
-#define TSCH_DEFAULT_TS_RX_WAIT            TSCH_CONF_RX_WAIT
-#define TSCH_DEFAULT_TS_ACK_WAIT           800
-#define TSCH_DEFAULT_TS_RX_TX              2072
-#define TSCH_DEFAULT_TS_MAX_ACK            2400
-#define TSCH_DEFAULT_TS_MAX_TX             4256
-#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH    25000
+#define TSCH_DEFAULT_TS_CCA_OFFSET 1800
+#define TSCH_DEFAULT_TS_CCA 128
+#define TSCH_DEFAULT_TS_TX_OFFSET 4000
+#define TSCH_DEFAULT_TS_RX_OFFSET (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
+#define TSCH_DEFAULT_TS_RX_ACK_DELAY 3600
+#define TSCH_DEFAULT_TS_TX_ACK_DELAY 4000
+#define TSCH_DEFAULT_TS_RX_WAIT TSCH_CONF_RX_WAIT
+#define TSCH_DEFAULT_TS_ACK_WAIT 800
+#define TSCH_DEFAULT_TS_RX_TX 2072
+#define TSCH_DEFAULT_TS_MAX_ACK 2400
+#define TSCH_DEFAULT_TS_MAX_TX 4256
+#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH 25000
 
 #elif TSCH_CONF_DEFAULT_TIMESLOT_LENGTH == 65000U
 /* 65ms timeslot, i.e. nearly the max length allowed by standard (16-bit unsigned in micro-seconds).
@@ -182,18 +187,18 @@
  * This configuration is mostly a work-around to test link-layer security in Cooja, it is recommended
  * to use it with a 6TiSCH minimal schedule of length >= 2. */
 
-#define TSCH_DEFAULT_TS_CCA_OFFSET         1800
-#define TSCH_DEFAULT_TS_CCA                128
-#define TSCH_DEFAULT_TS_TX_OFFSET          52000
-#define TSCH_DEFAULT_TS_RX_OFFSET          (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
-#define TSCH_DEFAULT_TS_RX_ACK_DELAY       58600
-#define TSCH_DEFAULT_TS_TX_ACK_DELAY       59000
-#define TSCH_DEFAULT_TS_RX_WAIT            TSCH_CONF_RX_WAIT
-#define TSCH_DEFAULT_TS_ACK_WAIT           800
-#define TSCH_DEFAULT_TS_RX_TX              2072
-#define TSCH_DEFAULT_TS_MAX_ACK            2400
-#define TSCH_DEFAULT_TS_MAX_TX             4256
-#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH    65000
+#define TSCH_DEFAULT_TS_CCA_OFFSET 1800
+#define TSCH_DEFAULT_TS_CCA 128
+#define TSCH_DEFAULT_TS_TX_OFFSET 52000
+#define TSCH_DEFAULT_TS_RX_OFFSET (TSCH_DEFAULT_TS_TX_OFFSET - (TSCH_CONF_RX_WAIT / 2))
+#define TSCH_DEFAULT_TS_RX_ACK_DELAY 58600
+#define TSCH_DEFAULT_TS_TX_ACK_DELAY 59000
+#define TSCH_DEFAULT_TS_RX_WAIT TSCH_CONF_RX_WAIT
+#define TSCH_DEFAULT_TS_ACK_WAIT 800
+#define TSCH_DEFAULT_TS_RX_TX 2072
+#define TSCH_DEFAULT_TS_MAX_ACK 2400
+#define TSCH_DEFAULT_TS_MAX_TX 4256
+#define TSCH_DEFAULT_TS_TIMESLOT_LENGTH 65000
 
 #else
 #error "TSCH: Unsupported default timeslot length"
@@ -235,13 +240,12 @@
 #define TSCH_CHANNEL_SCAN_DURATION CLOCK_SECOND
 #endif
 
-
 /* Additional Configurations for central scheduling */
 
 /* Are flow-based queues used? */
 #ifdef TSCH_CONF_FLOW_BASED_QUEUES
 #define TSCH_FLOW_BASED_QUEUES TSCH_CONF_FLOW_BASED_QUEUES
-#else 
+#else
 #define TSCH_FLOW_BASED_QUEUES 0
 #endif
 
@@ -252,19 +256,19 @@
 #define TSCH_TTL_BASED_RETRANSMISSIONS 0
 #endif
 
-/* Is TSCH used in central-scheduling-mode? - NEighbor discovery only overwrites this mode */ //use of TTL implementation / expiring packets 
+/* Is TSCH used in central-scheduling-mode? - NEighbor discovery only overwrites this mode */ //use of TTL implementation / expiring packets
 #if TSCH_CONF_WITH_CENTRAL_SCHEDULING && TSCH_CONF_NEIGHBOR_DISCOVERY_ONLY
 #define TSCH_WITH_CENTRAL_SCHEDULING 0
 #elif TSCH_CONF_WITH_CENTRAL_SCHEDULING
 #define TSCH_WITH_CENTRAL_SCHEDULING TSCH_CONF_WITH_CENTRAL_SCHEDULING
-#else 
+#else
 #define TSCH_WITH_CENTRAL_SCHEDULING 0
 #endif
 
-/* Is the only purpose to run the neighbor discovery? TODOLIV: create TSCH_CONF_WITH_NEIGHBOR_DISCOVERY when doing on-line ND */ // not used, but 
+/* Is the only purpose to run the neighbor discovery? TODOLIV: create TSCH_CONF_WITH_NEIGHBOR_DISCOVERY when doing on-line ND */ // not used, but
 #ifdef TSCH_CONF_NEIGHBOR_DISCOVERY_ONLY
 #define TSCH_NEIGHBOR_DISCOVERY_ONLY TSCH_CONF_NEIGHBOR_DISCOVERY_ONLY
-#else 
+#else
 #define TSCH_NEIGHBOR_DISCOVERY_ONLY !TSCH_WITH_CENTRAL_SCHEDULING
 #endif
 
@@ -272,17 +276,15 @@
 #ifdef TSCH_CONF_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 #define TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY TSCH_CONF_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 #else
-#define TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY 0
+#define TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY 1
 #endif
-
 
 /* DEBUG output without use of logging module TODOLIV: remove in publication version */
 #ifdef TSCH_CONF_DEBUG_PRINT
 #define TSCH_DEBUG_PRINT TSCH_CONF_DEBUG_PRINT
-#else 
+#else
 #define TSCH_DEBUG_PRINT 0
 #endif
-
 
 #endif /* __TSCH_CONF_H__ */
 /** @} */
