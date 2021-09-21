@@ -369,7 +369,7 @@ master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, cons
       }
 #   endif /* !MASTER_SCHEDULE */
 
-
+//Test if the commit can be made
     if (forward_to_upper_layer && len > minimal_routing_packet_size){
       //TODO: exchange source by flow-source
       //upper layer input callback (&mrp.data, len-minimal_routing_packet_size)
