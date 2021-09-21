@@ -576,7 +576,7 @@ int master_routing_sendto(const void *data, uint16_t datalen, uint8_t receiver)
   }
   else
   {
-    LOG_INFO("No routing info for receiver %u\n", receiver);
+    LOG_INFO("No routing inffo for receiver %u\n", receiver);
     return 0;
   }
 }
