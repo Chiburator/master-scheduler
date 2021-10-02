@@ -39,7 +39,7 @@
 
 /**
  * \addtogroup master-routing
- * @{
+ * @{ TEST
  */
 
 #include "contiki.h"
