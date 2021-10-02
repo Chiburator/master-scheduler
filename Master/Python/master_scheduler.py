@@ -168,7 +168,10 @@ def main():
   else:
     communications.append( (1, 2) )
 
-  
+
+  # TODO:: Hier muss ich eine etx statistik die ich über beacons errechne mitgeben. somit wird der parser nicht gebraucht
+  # TODO:: Ein Graph wird aber weiterhin benötigt zum erstellen des schedules. 
+  # TODO:: wie sieht dieser aus?  
   # Parse neighbor discovery file(s)
   neighbor_parser = Parser(node_ids, folder, filename, max_etx)
   neighbor_parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)

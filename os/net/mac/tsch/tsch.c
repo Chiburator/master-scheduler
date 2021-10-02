@@ -179,7 +179,9 @@ static uint8_t tsch_packet_seqno;
 static clock_time_t tsch_current_eb_period;
 /* Current period for keepalive output */
 static clock_time_t tsch_current_ka_timeout;
-
+short last_received_eb[NUM_COOJA_NODES]; 
+short missed_eb[NUM_COOJA_NODES]; 
+short received_eb[NUM_COOJA_NODES]; 
 //uint8_t num_eb_packets = 0;
 //uint8_t num_packets = 0;
 
@@ -473,14 +475,30 @@ eb_input(struct input_packet *current_input)
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   }
 }
+/*---------------------------------------------------------------------------*/
+/* TODO:: Implement neighbour_discovery via EB with sequencenumber*/
 
 extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src, const uint16_t *seq_nr)
 {
-  LOG_ERR("Received TSCH Enhanced Beacon received: %i; own: %i\n", *data, *seq_nr);
-}
+  //LOG_ERR("LinkAddress: ");
+  short node=0;
+  int i;
+  //src is char array. parste last part to short uint8 to get the node id
+  for(i = 0; i < LINKADDR_SIZE; i++)
+  {
+     // LOG_ERR("%i", src->u8[i]);
+      node += src->u8[i];
+  }
+   // LOG_ERR("\n and node is %i \n", node);
+  //e.g. packet 
+  missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
+  //Nodes start at 1 and array at 0 -> node-1
+  last_received_eb[node-1] = *data;
+  received_eb[node-1] += 1;
 
-/*---------------------------------------------------------------------------*/
-/* TODO:: Implement neighbour_discovery via EB with sequencenumber*/
+  LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[0], node, *data);
+  //TODO:: logging so bauen das ich checken kann ob es stimmt, dass eine hohe verlustrate vorliegt.
+}
 
 /*---------------------------------------------------------------------------*/
 /* Process pending input packet(s) */
@@ -1079,6 +1097,17 @@ tsch_init(void)
   {
     LOG_ERR("! TSCH_HOPPING_SEQUENCE_MAX_LEN < sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE). Abort init.\n");
   }
+
+  //TODO:: maybe move this to own function
+  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+    int i;
+    for(i = 0; i < NUM_COOJA_NODES; i++)
+    {
+      last_received_eb[i] = 0;
+      missed_eb[i] = 0;
+      received_eb[i] = 0;
+    }
+  #endif
 
   /* Init the queuebuf and TSCH sub-modules */
   queuebuf_init();

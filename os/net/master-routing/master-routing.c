@@ -310,6 +310,10 @@ add_links(const scheduled_link_t *links, uint8_t number_links, const uint8_t *ch
 static void
 master_install_schedule(void *ptr)
 {
+  LOG_INFO("Missed Packets:\n");
+  LOG_INFO("BeaconsList 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", missed_eb[0], missed_eb[1], missed_eb[2], missed_eb[3], missed_eb[4]);
+  LOG_INFO("LastReceived 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", last_received_eb[0], last_received_eb[1], last_received_eb[2], last_received_eb[3], last_received_eb[4]);
+  LOG_INFO("TotalReceived 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", received_eb[0], received_eb[1], received_eb[2], received_eb[3], received_eb[4]);
   LOG_INFO("install schedule\n");
   tsch_set_eb_period(TSCH_EB_PERIOD);
   tsch_schedule_remove_slotframe(sf[0]);

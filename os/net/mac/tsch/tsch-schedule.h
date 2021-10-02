@@ -137,6 +137,7 @@ struct tsch_slotframe
   LIST_STRUCT(links_list);
 };
 
+
 /********** Functions *********/
 
 /* Module initialization, call only once at startup. Returns 1 is success, 0 if failure. */

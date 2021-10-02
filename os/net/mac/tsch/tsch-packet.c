@@ -299,7 +299,7 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   ies.ie_sequence_number = ++sequence_number;
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
-  LOG_INFO("Sending TSCH Enhanced Beacon sequence number: %i \n", ies.ie_sequence_number);
+  LOG_INFO("EBSend;%i;%i\n", linkaddr_node_addr.u8[0], ies.ie_sequence_number);
   p = packetbuf_dataptr();
 
   ie_len = frame80215e_create_ie_tsch_synchronization(p,

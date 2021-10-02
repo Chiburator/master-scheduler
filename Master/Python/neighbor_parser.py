@@ -113,15 +113,15 @@ class Parser(object):
                 self.graph_rssi[sender][receiver] = avg_rssi_value
 
   def print_parsed_data_table(self, table_type):
-    if table_type == Data_table.etx:
+    if table_type == Data_table.etx: #Expected transmission count
       output = 'ETX'
       graph = self.graph_etx
       entry_format_string = '{:8.3f}'
-    elif table_type == Data_table.prr:
+    elif table_type == Data_table.prr: #Packet Reception Rate
       output = 'PRR'
       graph = self.graph_prr
       entry_format_string = '{:8.3f}'
-    elif table_type == Data_table.rssi:
+    elif table_type == Data_table.rssi: #Received Signal Strength Indicator
       output = 'RSSI'
       graph = self.graph_rssi
       entry_format_string = '{:8.1f}'
