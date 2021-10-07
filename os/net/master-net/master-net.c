@@ -52,7 +52,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "MASTER-N"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_TRACE
 
 
 uint8_t *masternet_buf;
@@ -70,6 +70,7 @@ init(void)
 static void
 input(void)
 {
+  LOG_TRACE("input \n");
   if(current_callback != NULL) {
     //below: might be too verbose timing wise
     LOG_INFO("received %u bytes from ", packetbuf_datalen());
@@ -78,23 +79,29 @@ input(void)
     current_callback(packetbuf_dataptr(), packetbuf_datalen(),
       packetbuf_addr(PACKETBUF_ADDR_SENDER), packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
   }
+  LOG_TRACE_RETURN("input \n");
 }
 /*--------------------------------------------------------------------*/
 void
 masternet_set_input_callback(masternet_input_callback callback)
 {
- current_callback = callback;
+  LOG_TRACE("masternet_set_input_callback \n");
+  current_callback = callback;
+  LOG_TRACE_RETURN("masternet_set_input_callback \n");
 }
 /*--------------------------------------------------------------------*/
 void
 masternet_set_config_callback(masternet_config_callback callback)
 {
- config_callback = callback;
+  LOG_TRACE("masternet_set_config_callback \n");
+  config_callback = callback;
+  LOG_TRACE_RETURN("masternet_set_config_callback \n");
 }
 /*--------------------------------------------------------------------*/
 static uint8_t
 output(const linkaddr_t *dest)
 {
+  LOG_TRACE("output \n");
   int framer_hdrlen;
   int max_payload;
 
@@ -142,6 +149,7 @@ output(const linkaddr_t *dest)
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
     NETSTACK_MAC.send(NULL, NULL);
+    LOG_TRACE_RETURN("output \n");
     return 1;
   } else {
     LOG_ERR("sending failed: %u bytes of %u possible bytes to ", masternet_len, max_payload);
@@ -149,6 +157,7 @@ output(const linkaddr_t *dest)
     LOG_ERR_("\n");
     leds_off(LEDS_YELLOW);
     packetbuf_clear();
+    LOG_TRACE_RETURN("output \n");
     return 0;
   }
   

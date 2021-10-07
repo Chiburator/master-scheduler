@@ -240,6 +240,7 @@ static void set_destination_link_addr(uint8_t destination_node_id)
 static int
 install_discovery_schedule()
 {
+  LOG_TRACE("install_discovery_schedule \n");
   LOG_INFO("install discovery schedule\n");
   uint8_t tx_slot;
   uint16_t num_discovery_sending_slots;
@@ -276,8 +277,10 @@ install_discovery_schedule()
     is_sender = 1;
     //LOG_INFO("sender\n");
     own_receiver = 0;
+    LOG_TRACE_RETURN("install_discovery_schedule \n");
     return 1;
   }
+  LOG_TRACE_RETURN("install_discovery_schedule \n");
   return 0;
 }
 #endif /* !MASTER_SCHEDULE */
@@ -289,6 +292,7 @@ install_discovery_schedule()
 static void
 add_links(const scheduled_link_t *links, uint8_t number_links, const uint8_t *change_on_index, const uint8_t *change_on_index_to, uint8_t number_changes)
 {
+  LOG_TRACE("add_links \n");
   uint8_t link_idx;
   uint8_t change_idx = 0;
   for (link_idx = 0; link_idx < number_links; ++link_idx)
@@ -304,14 +308,16 @@ add_links(const scheduled_link_t *links, uint8_t number_links, const uint8_t *ch
   }
   tsch_schedule_print();
   LOG_INFO("SCHEDULE INSTALLED!!\n");
+  LOG_TRACE_RETURN("add_links \n");
 }
 #endif /* MASTER_SCHEDULE */
 /*---------------------------------------------------------------------------*/
 static void
 master_install_schedule(void *ptr)
 {
+  LOG_TRACE("master_install_schedule \n");
   LOG_INFO("Missed Packets:\n");
-  LOG_INFO("BeaconsList 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", missed_eb[0], missed_eb[1], missed_eb[2], missed_eb[3], missed_eb[4]);
+  LOG_INFO("MissedEB 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", missed_eb[0], missed_eb[1], missed_eb[2], missed_eb[3], missed_eb[4]);
   LOG_INFO("LastReceived 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", last_received_eb[0], last_received_eb[1], last_received_eb[2], last_received_eb[3], last_received_eb[4]);
   LOG_INFO("TotalReceived 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", received_eb[0], received_eb[1], received_eb[2], received_eb[3], received_eb[4]);
   LOG_INFO("install schedule\n");
@@ -327,19 +333,23 @@ master_install_schedule(void *ptr)
 #endif /* MASTER_SCHEDULE */
   is_configured = 1;
   //if MASTER_SCHEDULE -> install schedule, else -> install ND schedule
+  LOG_TRACE_RETURN("master_install_schedule \n");
 }
 /*---------------------------------------------------------------------------*/
 void master_routing_set_input_callback(master_routing_input_callback callback)
 {
+  LOG_TRACE("master_routing_set_input_callback \n");
   if (started == 0)
   {
     init_master_routing();
   }
   current_callback = callback;
+  LOG_TRACE_RETURN("master_routing_set_input_callback \n");
 }
 /*---------------------------------------------------------------------------*/
 void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
+  LOG_TRACE("master_routing_input \n");
   leds_on(LEDS_RED);
   if (len >= minimal_routing_packet_size && len <= maximal_routing_packet_size)
   {
@@ -428,11 +438,14 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
     }
   }
   leds_off(LEDS_RED);
+  LOG_TRACE_RETURN("master_routing_input \n");
 }
 /*---------------------------------------------------------------------------*/
 master_packetbuf_config_t
 master_routing_sent_configuration()
 {
+  LOG_TRACE("master_routing_sent_configuration \n");
+  LOG_TRACE_RETURN("master_routing_sent_configuration \n");
   return sent_packet_configuration;
 }
 /*---------------------------------------------------------------------------*/
@@ -453,6 +466,7 @@ int master_routing_configured()
 /*---------------------------------------------------------------------------*/
 int neighbor_discovery_send(const void *data, uint16_t datalen)
 {
+  LOG_TRACE("neighbor_discovery_send \n");
   //LOG_INFO("ND send\n");
   if (own_transmission_flow != 0)
   {
@@ -464,18 +478,22 @@ int neighbor_discovery_send(const void *data, uint16_t datalen)
     masternet_len = minimal_routing_packet_size + datalen;
     success = NETSTACK_NETWORK.output(NULL);
     LOG_INFO("sent;%u;%u\n", node_id, own_packet_number); //sent;<from>;<number>
+    LOG_TRACE_RETURN("neighbor_discovery_send \n");
     return success;
   }
   else
   {
     LOG_INFO("Node %u is no sender!\n", node_id);
+    LOG_TRACE_RETURN("neighbor_discovery_send \n");
     return 0;
   }
 }
 /*---------------------------------------------------------------------------*/
 int master_routing_send(const void *data, uint16_t datalen)
 {
+  LOG_TRACE("master_routing_send \n");
 #ifndef MASTER_SCHEDULE
+  LOG_TRACE_RETURN("master_routing_send \n");
   return neighbor_discovery_send(data, datalen);
 #else
   if (own_transmission_flow != 0)
@@ -500,6 +518,7 @@ int master_routing_send(const void *data, uint16_t datalen)
     { // avoid duplicates in earliest ASN
       --own_packet_number;
       LOG_INFO("Too high sending frequency, try again later\n");
+      LOG_TRACE_RETURN("master_routing_send \n");
       return 0;
     }
     last_sent_packet_asn = mrp.earliest_tx_slot;
@@ -561,32 +580,39 @@ int master_routing_send(const void *data, uint16_t datalen)
     {
       LOG_INFO("No routing info for flow %u\n", mrp.flow_number);
     }
+    LOG_TRACE_RETURN("master_routing_send \n");
     return 1;
   }
   else
   {
     LOG_INFO("Node %u is no sender!\n", node_id);
+    LOG_TRACE_RETURN("master_routing_send \n");
     return 0;
   }
 #endif /* !MASTER_SCHEDULE */
+
 }
 /*---------------------------------------------------------------------------*/
 int master_routing_sendto(const void *data, uint16_t datalen, uint8_t receiver)
 {
+    LOG_TRACE("master_routing_sendto \n");
   //LOG_INFO("send length %u to %u", datalen, receiver);
   if (receiver == own_receiver)
   {
+    LOG_TRACE_RETURN("master_routing_sendto \n");
     return master_routing_send(data, datalen);
   }
   else
   {
     LOG_INFO("No routing inffo for receiver %u\n", receiver);
+    LOG_TRACE_RETURN("master_routing_sendto \n");
     return 0;
   }
 }
 /*---------------------------------------------------------------------------*/
 void init_master_routing(void)
 {
+  LOG_TRACE("init_master_routing \n");
 #if NETSTACK_CONF_WITH_MASTER_NET
   if (started == 0)
   {
@@ -602,7 +628,8 @@ void init_master_routing(void)
     //E.G Node 1 of 5 will be the coordinator of the network
     tsch_set_coordinator(linkaddr_cmp(&coordinator_addr, &linkaddr_node_addr));
     //The Enhanced beacon timer
-    tsch_set_eb_period(CLOCK_SECOND / 4);
+    tsch_set_eb_period(CLOCK_SECOND / 10);
+        LOG_INFO("set EBBBB\n");
 #endif /* MAC_CONF_WITH_TSCH */
 
     /* Initialize MasterNet */
@@ -616,8 +643,22 @@ void init_master_routing(void)
     masternet_set_config_callback(master_routing_sent_configuration);
 
     tsch_schedule_remove_all_slotframes();
-    sf[0] = tsch_schedule_add_slotframe(0, 1);
-    tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
+    #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+      sf[0] = tsch_schedule_add_slotframe(0, NUM_COOJA_NODES);
+      int i;
+      for(i = 0; i < NUM_COOJA_NODES; i++)
+      {
+        if(node_id == i+1)
+        {
+        tsch_schedule_add_link(sf[0], LINK_OPTION_TX , LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, i, 0);
+        }else{
+        tsch_schedule_add_link(sf[0], LINK_OPTION_RX , LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, i, 0);
+        }
+      }
+    #else
+      sf[0] = tsch_schedule_add_slotframe(0, 1);
+      tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
+    #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
     ctimer_set(&install_schedule_timer, MASTER_INIT_PERIOD, master_install_schedule, NULL);
@@ -627,6 +668,7 @@ void init_master_routing(void)
 #else
   LOG_ERR("can't init master-routing: master-net not configured\n");
 #endif /* NETSTACK_CONF_WITH_MASTER_NET */
+  LOG_TRACE_RETURN("init_master_routing \n");
 }
 /*---------------------------------------------------------------------------*/
 /** @} */

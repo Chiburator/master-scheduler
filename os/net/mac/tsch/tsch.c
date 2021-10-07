@@ -78,7 +78,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#define LOG_LEVEL LOG_LEVEL_NONE
 
 #if TSCH_DEBUG_PRINT
 #include <stdio.h>
@@ -207,26 +207,33 @@ static void packet_input(void);
 /*---------------------------------------------------------------------------*/
 void tsch_set_coordinator(int enable)
 {
+  LOG_TRACE("tsch_set_coordinator \n");
   if (tsch_is_coordinator != enable)
   {
     tsch_is_associated = 0;
   }
   tsch_is_coordinator = enable;
   tsch_set_eb_period(TSCH_EB_PERIOD);
+  LOG_TRACE_RETURN("tsch_set_coordinator \n");
 }
 /*---------------------------------------------------------------------------*/
 void tsch_set_pan_secured(int enable)
 {
+  LOG_TRACE("tsch_set_pan_secured \n");
   tsch_is_pan_secured = LLSEC802154_ENABLED && enable;
+  LOG_TRACE_RETURN("tsch_set_pan_secured \n");
 }
 /*---------------------------------------------------------------------------*/
 void tsch_set_join_priority(uint8_t jp)
 {
+  LOG_TRACE("tsch_set_pan_secured \n");
   tsch_join_priority = jp;
+  LOG_TRACE_RETURN("tsch_set_join_priority \n");
 }
 /*---------------------------------------------------------------------------*/
 void tsch_set_ka_timeout(uint32_t timeout)
 {
+  LOG_TRACE("tsch_set_ka_timeout \n");
   tsch_current_ka_timeout = timeout;
   if (timeout == 0)
   {
@@ -236,16 +243,20 @@ void tsch_set_ka_timeout(uint32_t timeout)
   {
     tsch_schedule_keepalive();
   }
+  LOG_TRACE_RETURN("tsch_set_ka_timeout \n");
 }
 /*---------------------------------------------------------------------------*/
 void tsch_set_eb_period(uint32_t period)
 {
+  LOG_TRACE("tsch_set_eb_period \n");
   tsch_current_eb_period = MIN(period, TSCH_MAX_EB_PERIOD);
+  LOG_TRACE_RETURN("tsch_set_eb_period \n");
 }
 /*---------------------------------------------------------------------------*/
 static void
 tsch_reset(void)
 {
+  LOG_TRACE("tsch_reset \n");
   int i;
   frame802154_set_pan_id(0xffff);
   /* First make sure pending packet callbacks are sent etc */
@@ -280,6 +291,7 @@ tsch_reset(void)
   }
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
   tsch_set_eb_period(TSCH_EB_PERIOD);
+  LOG_TRACE_RETURN("tsch_reset \n");
 }
 /* TSCH keep-alive functions */
 
@@ -288,6 +300,7 @@ tsch_reset(void)
 static void
 keepalive_packet_sent(void *ptr, int status, int transmissions)
 {
+  LOG_TRACE("keepalive_packet_sent \n");
   /* Update neighbor link statistics */
   link_stats_packet_sent(packetbuf_addr(PACKETBUF_ADDR_RECEIVER), status, transmissions);
   /* Call RPL callback if RPL is enabled */
@@ -323,17 +336,20 @@ keepalive_packet_sent(void *ptr, int status, int transmissions)
       tsch_join_priority = last_eb_nbr_jp + 1;
       /* Try to get in sync ASAP */
       tsch_schedule_keepalive_immediately();
+      LOG_TRACE_RETURN("keepalive_packet_sent \n");
       return;
     }
   }
 
   tsch_schedule_keepalive();
+  LOG_TRACE_RETURN("keepalive_packet_sent \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Prepare and send a keepalive message */
 static void
 keepalive_send(void *ptr)
 {
+  LOG_TRACE("keepalive_send \n");
   if (tsch_is_associated)
   {
     struct tsch_neighbor *n = tsch_queue_get_time_source();
@@ -352,6 +368,7 @@ keepalive_send(void *ptr)
       LOG_ERR("no timesource - KA not sent\n");
     }
   }
+  LOG_TRACE_RETURN("keepalive_send \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Set ctimer to send a keepalive message after expiration of TSCH_KEEPALIVE_TIMEOUT */
@@ -378,6 +395,7 @@ void tsch_schedule_keepalive_immediately(void)
 static void
 eb_input(struct input_packet *current_input)
 {
+  LOG_TRACE("eb_input \n");
   /* LOG_INFO("EB received\n"); */
   frame802154_t frame;
   /* Verify incoming EB (does its ASN match our Rx time?),
@@ -474,12 +492,14 @@ eb_input(struct input_packet *current_input)
     neighbor_discovery_input(&eb_ies.ie_sequence_number, (linkaddr_t *)&frame.src_addr, &sequence_number);
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   }
+  LOG_TRACE_RETURN("eb_input \n");
 }
 /*---------------------------------------------------------------------------*/
 /* TODO:: Implement neighbour_discovery via EB with sequencenumber*/
 
 extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src, const uint16_t *seq_nr)
 {
+  LOG_TRACE("neighbor_discovery_input \n");
   //LOG_ERR("LinkAddress: ");
   short node=0;
   int i;
@@ -497,6 +517,7 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
   received_eb[node-1] += 1;
 
   LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[0], node, *data);
+  LOG_TRACE_RETURN("neighbor_discovery_input \n");
   //TODO:: logging so bauen das ich checken kann ob es stimmt, dass eine hohe verlustrate vorliegt.
 }
 
@@ -505,6 +526,7 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
 static void
 tsch_rx_process_pending()
 {
+  LOG_TRACE("tsch_rx_process_pending \n");
   int16_t input_index;
   /* Loop on accessing (without removing) a pending input packet */
   while ((input_index = ringbufindex_peek_get(&input_ringbuf)) != -1)
@@ -548,12 +570,14 @@ tsch_rx_process_pending()
     /* Remove input from ringbuf */
     ringbufindex_get(&input_ringbuf);
   }
+  LOG_TRACE_RETURN("tsch_rx_process_pending \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Pass sent packets to upper layer */
 static void
 tsch_tx_process_pending(void)
 {
+  LOG_TRACE("tsch_tx_process_pending \n");
   int16_t dequeued_index;
   /* Loop on accessing (without removing) a pending input packet */
   while ((dequeued_index = ringbufindex_peek_get(&dequeued_ringbuf)) != -1)
@@ -574,12 +598,14 @@ tsch_tx_process_pending(void)
     /* Remove dequeued packet from ringbuf */
     ringbufindex_get(&dequeued_ringbuf);
   }
+  LOG_TRACE_RETURN("tsch_tx_process_pending \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Setup TSCH as a coordinator */
 static void
 tsch_start_coordinator(void)
 {
+  LOG_TRACE("tsch_start_coordinator \n");
   frame802154_set_pan_id(IEEE802154_PANID);
   /* Initialize hopping sequence as default */
   memcpy(tsch_hopping_sequence, TSCH_DEFAULT_HOPPING_SEQUENCE, sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE));
@@ -596,6 +622,7 @@ tsch_start_coordinator(void)
 
   /* Start slot operation */
   tsch_slot_operation_sync(RTIMER_NOW(), &tsch_current_asn);
+  LOG_TRACE_RETURN("tsch_start_coordinator \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Leave the TSCH network */
@@ -612,6 +639,7 @@ void tsch_disassociate(void)
 static int
 tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
 {
+  LOG_TRACE("tsch_associate \n");
   frame802154_t frame;
   struct ieee802154_ies ies;
   uint8_t hdrlen;
@@ -621,6 +649,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
                                                &frame, &ies, &hdrlen, 0) == 0)
   {
     LOG_ERR("! failed to parse EB (len %u)\n", input_eb->len);
+    LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
 
@@ -631,6 +660,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
   if (frame.fcf.security_enabled == 0)
   {
     LOG_ERR("! parse_eb: EB is not secured\n");
+    LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
 #endif /* TSCH_JOIN_SECURED_ONLY */
@@ -640,6 +670,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
                                  &frame, (linkaddr_t *)&frame.src_addr, &tsch_current_asn))
   {
     LOG_ERR("! parse_eb: failed to authenticate\n");
+    LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
 #endif /* LLSEC802154_ENABLED */
@@ -648,6 +679,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
   if (frame.fcf.security_enabled == 1)
   {
     LOG_ERR("! parse_eb: we do not support security, but EB is secured\n");
+    LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
 #endif /* !LLSEC802154_ENABLED */
@@ -657,6 +689,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
   if (frame.src_pid != IEEE802154_PANID)
   {
     LOG_ERR("! parse_eb: PAN ID %x != %x\n", frame.src_pid, IEEE802154_PANID);
+    LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
 #endif /* TSCH_JOIN_MY_PANID_ONLY */
@@ -665,6 +698,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
   if (ies.ie_join_priority == 0xff)
   {
     LOG_ERR("! parse_eb: no join priority\n");
+    LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
 
@@ -697,6 +731,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
     else
     {
       LOG_ERR("! parse_eb: hopping sequence too long (%u)\n", ies.ie_hopping_sequence_len);
+      LOG_TRACE_RETURN("tsch_associate \n");
       return 0;
     }
   }
@@ -710,6 +745,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
   {
     LOG_ERR("! EB ASN rejected %lx %lx %ld\n",
             tsch_current_asn.ls4b, expected_asn, asn_diff);
+    LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
 #endif
@@ -748,6 +784,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
     else
     {
       LOG_ERR("! parse_eb: too many links in schedule (%u)\n", num_links);
+      LOG_TRACE_RETURN("tsch_associate \n");
       return 0;
     }
   }
@@ -807,11 +844,12 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
              ies.ie_tsch_slotframe_and_link.num_links,
              frame.src_addr[0]);
 #endif /* TSCH_DEBUG_PRINT */
-
+      LOG_TRACE_RETURN("tsch_associate \n");
       return 1;
     }
   }
   LOG_ERR("! did not associate.\n");
+  LOG_TRACE_RETURN("tsch_associate \n");
   return 0;
 }
 /* Processes and protothreads used by TSCH */
@@ -823,6 +861,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
  */
 PT_THREAD(tsch_scan(struct pt *pt))
 {
+  LOG_TRACE("tsch_scan \n");
   PT_BEGIN(pt);
 
   static struct input_packet input_eb;
@@ -896,7 +935,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
       PT_WAIT_UNTIL(pt, etimer_expired(&scan_timer));
     }
   }
-
+  LOG_TRACE_RETURN("tsch_scan \n");
   PT_END(pt);
 }
 
@@ -1139,6 +1178,7 @@ tsch_init(void)
 static void
 send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 {
+  LOG_TRACE("send_packet \n");
   //printf("add packet to queue!\n");
   int ret = MAC_TX_DEFERRED;
   int hdr_len = 0;
@@ -1160,6 +1200,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     }
     ret = MAC_TX_ERR;
     mac_call_sent_callback(sent, ptr, ret, 1);
+    LOG_TRACE_RETURN("send_packet \n");
     return;
   }
 
@@ -1209,6 +1250,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES //TODO TODOLIV: why?
   if (max_transmissions == 0)
   {
+    LOG_TRACE_RETURN("send_packet \n");
     return; // skip if no transmissions left
   }
   flow_addr.u8[1] = (uint8_t)packetbuf_attr(PACKETBUF_ATTR_FLOW_NUMBER);
@@ -1276,11 +1318,13 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
   {
     mac_call_sent_callback(sent, ptr, ret, 1);
   }
+  LOG_TRACE_RETURN("send_packet \n");
 }
 /*---------------------------------------------------------------------------*/
 static void
 packet_input(void)
 {
+  LOG_TRACE("packet_input \n");
   int frame_parsed = 1;
 
   frame_parsed = NETSTACK_FRAMER.parse();
@@ -1322,11 +1366,13 @@ packet_input(void)
       NETSTACK_NETWORK.input();
     }
   }
+  LOG_TRACE_RETURN("packet_input \n");
 }
 /*---------------------------------------------------------------------------*/
 static int
 turn_on(void)
 {
+  LOG_TRACE("turn_on \n");
   if (tsch_is_initialized == 1 && tsch_is_started == 0)
   {
     tsch_is_started = 1;
@@ -1337,8 +1383,10 @@ turn_on(void)
     /* try to associate to a network or start one if setup as coordinator */
     process_start(&tsch_process, NULL);
     LOG_INFO("starting as %s\n", tsch_is_coordinator ? "coordinator" : "node");
+    LOG_TRACE_RETURN("turn_on \n");
     return 1;
   }
+  LOG_TRACE_RETURN("turn_on \n");
   return 0;
 }
 /*---------------------------------------------------------------------------*/

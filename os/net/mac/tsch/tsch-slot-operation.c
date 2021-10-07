@@ -46,7 +46,7 @@
 */
 
 #include "dev/radio.h"
-//#include "dev/leds.h"
+ #include "dev/leds.h"
 #include "contiki.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
@@ -90,6 +90,9 @@
 #ifndef TSCH_DEBUG_SLOT_END
 #define TSCH_DEBUG_SLOT_END()
 #endif
+
+#define LOG_MODULE "TSCH-SlotOperation"
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 /* Check if TSCH_MAX_INCOMING_PACKETS is power of two */
 #if (TSCH_MAX_INCOMING_PACKETS & (TSCH_MAX_INCOMING_PACKETS - 1)) != 0
@@ -303,6 +306,7 @@ check_timer_miss(rtimer_clock_t ref_time, rtimer_clock_t offset, rtimer_clock_t 
 static uint8_t
 tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_clock_t offset, const char *str)
 {
+  //LOG_TRACE("tsch_schedule_slot_operation \n");
   rtimer_clock_t now = RTIMER_NOW();
   int r;
   /* Subtract RTIMER_GUARD before checking for deadline miss
@@ -310,19 +314,27 @@ tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_
   int missed = check_timer_miss(ref_time, offset - RTIMER_GUARD, now);
 
   if(missed) {
-    //TSCH_LOG_ADD(tsch_log_message,
-    //            snprintf(log->message, sizeof(log->message),
-    //                "!dl-miss %s %d %d",
-    //                    str, (int)(now-ref_time), (int)offset);
-    //);
-
+    TSCH_LOG_ADD(tsch_log_message,
+                snprintf(log->message, sizeof(log->message),
+                    "!dl-miss %s %d %d",
+                        str, (int)(now-ref_time), (int)offset);
+    );
+    //LOG_TRACE("tsch_schedule_slot_operation 0\n");
     return 0;
   }
+  //TODO:: use TSCH_LOG_ADD to make a trace without reducing performance?
+  //TSCH_LOG_ADD("slot start = %i and offset = %i \n", ref_time, offset);
+
   ref_time += offset;
   r = rtimer_set(tm, ref_time, 1, (void (*)(struct rtimer *, void *))tsch_slot_operation, NULL);
   if(r != RTIMER_OK) {
+           TSCH_LOG_ADD(tsch_log_message,
+                snprintf(log->message, sizeof(log->message),
+                    "now=%d, reftime=%d, offset=%d",
+                        (int)now, (int)ref_time, (int)offset););
     return 0;
   }
+   //LOG_TRACE_INFO("tsch_schedule_slot_operation 1\n");
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -341,6 +353,7 @@ tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_
 static struct tsch_packet *
 get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **target_neighbor)
 {
+  LOG_TRACE("get_packet_and_neighbor_for_link \n");
   struct tsch_packet *p = NULL;
   struct tsch_neighbor *n = NULL;
 # if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
@@ -437,6 +450,7 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
     *target_neighbor = n;
   }
   //leds_off(LEDS_BLUE);
+  LOG_TRACE_RETURN("get_packet_and_neighbor_for_link \n");
   return p;
 }
 /*---------------------------------------------------------------------------*/
@@ -450,6 +464,7 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
 static void
 tsch_radio_on(enum tsch_radio_state_on_cmd command)
 {
+  LOG_TRACE("tsch_radio_on \n");
   int do_it = 0;
   switch(command) {
   case TSCH_RADIO_CMD_ON_START_OF_TIMESLOT:
@@ -468,8 +483,10 @@ tsch_radio_on(enum tsch_radio_state_on_cmd command)
   }
   if(do_it) {
     //SET_PIN_ADC2;
+    LOG_TRACE("activate radio \n");
     NETSTACK_RADIO.on();
   }
+  LOG_TRACE_RETURN("tsch_radio_on \n");
 }
 /*---------------------------------------------------------------------------*/
 /**
@@ -482,6 +499,7 @@ tsch_radio_on(enum tsch_radio_state_on_cmd command)
 static void
 tsch_radio_off(enum tsch_radio_state_off_cmd command)
 {
+  LOG_TRACE("tsch_radio_off \n");
   int do_it = 0;
   switch(command) {
   case TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT:
@@ -502,11 +520,13 @@ tsch_radio_off(enum tsch_radio_state_off_cmd command)
     //UNSET_PIN_ADC2;
     NETSTACK_RADIO.off();
   }
+  LOG_TRACE_RETURN("tsch_radio_off \n");  
 }
 /*---------------------------------------------------------------------------*/
 static
 PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
 {
+  LOG_TRACE("PT: tsch_tx_slot \n");
   /**
    * TX slot:
    * 1. Copy packet to radio buffer
@@ -612,6 +632,9 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
           //printf("TSCH: transmitting ...\n");
           mac_tx_status = NETSTACK_RADIO.transmit(packet_len);
           tx_count++;
+          TSCH_LOG_ADD(tsch_log_message,
+          snprintf(log->message, sizeof(log->message),
+          "transmitting %lu", tx_count));
           /* Save tx timestamp */
           tx_start_time = current_slot_start + tsch_timing[tsch_ts_tx_offset];
           /* calculate TX duration based on sent packet len */
@@ -620,6 +643,10 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
           tx_duration = MIN(tx_duration, tsch_timing[tsch_ts_max_tx]);
           /* turn tadio off -- will turn on again to wait for ACK if needed */
           tsch_radio_off(TSCH_RADIO_CMD_OFF_WITHIN_TIMESLOT);
+          TSCH_LOG_ADD(tsch_log_message,
+          snprintf(log->message, sizeof(log->message),
+          "transmitting Finished"));
+          leds_off(LEDS_GREEN);
 
           if(mac_tx_status == RADIO_TX_OK) {
             //TOGGLE_PIN_ADC2;
@@ -743,6 +770,9 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
                 mac_tx_status = MAC_TX_NOACK;
               }
             } else {
+              TSCH_LOG_ADD(tsch_log_message,
+                snprintf(log->message, sizeof(log->message),
+                "is broadcast"));
               mac_tx_status = MAC_TX_OK;
             }
           } else {
@@ -799,7 +829,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
   }
   //leds_off(LEDS_RED);
   TSCH_DEBUG_TX_EVENT();
-
+  LOG_TRACE_RETURN("PT: tsch_tx_slot \n");
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
@@ -814,7 +844,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
    * 4. Prepare and send ACK if needed
    * 5. Drift calculated in the ACK callback registered with the radio driver. Use it if receiving from a time source neighbor.
    **/
-
+  LOG_TRACE("PT: tsch_rx_slot \n");
   struct tsch_neighbor *n;
   static linkaddr_t source_address;
   static linkaddr_t destination_address;
@@ -863,6 +893,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       //UNSET_PIN_ADC2;
       //SET_PIN_ADC2;
       /* no packets on air */
+      leds_off(LEDS_GREEN);
       tsch_radio_off(TSCH_RADIO_CMD_OFF_FORCE);
     } else {
       TSCH_DEBUG_RX_EVENT();
@@ -875,6 +906,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       TSCH_DEBUG_RX_EVENT();
       //UNSET_PIN_ADC2;
       //SET_PIN_ADC2;
+      leds_off(LEDS_GREEN);
       tsch_radio_off(TSCH_RADIO_CMD_OFF_WITHIN_TIMESLOT);
 
       if(NETSTACK_RADIO.pending_packet()) {
@@ -1051,7 +1083,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
   }
 
   TSCH_DEBUG_RX_EVENT();
-
+  LOG_TRACE_RETURN("PT: tsch_rx_slot \n");
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
@@ -1060,11 +1092,13 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
 static
 PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
 {
+  //LOG_INFO("tsch_slot_operation \n");
   TSCH_DEBUG_INTERRUPT();
   PT_BEGIN(&slot_operation_pt);
   /* Loop over all active slots */
   while(tsch_is_associated) {
     //TOGGLE_PIN_ADC6;
+
 
     if(current_link == NULL || tsch_lock_requested) { /* Skip slot operation if there is no link
                                                           or if there is a pending request for getting the lock */
@@ -1086,7 +1120,11 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       is_drift_correction_used = 0;
       /* Get a packet ready to be sent */
       current_packet = get_packet_and_neighbor_for_link(current_link, &current_neighbor);
-      
+      // if(current_packet == NULL)
+      // {
+      //     TSCH_LOG_ADD(tsch_log_message,
+      //        "!current_packet is null before backup check");
+      // }
       /*if (current_link->link_options == LINK_OPTION_TX){
         printf("TX_slot: timeslot %u - addr %u - current_neighbor %u\n", current_link->timeslot, current_link->addr.u8[0], current_neighbor->addr.u8[0]);
         if (current_packet == NULL){
@@ -1102,12 +1140,20 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
         current_packet = get_packet_and_neighbor_for_link(current_link, &current_neighbor);
       }
       is_active_slot = current_packet != NULL || (current_link->link_options & LINK_OPTION_RX);
+      // if(current_packet == NULL)
+      // {
+      //         TSCH_LOG_ADD(tsch_log_message,
+      //     snprintf(log->message, sizeof(log->message),
+      //        "!current_packet is null after backup check"););
+      // }
+
       if(is_active_slot) {
-        //leds_on(LEDS_GREEN);
+        leds_on(LEDS_RED);
         /* Hop channel */
         current_channel = tsch_calculate_channel(&tsch_current_asn, current_link->channel_offset);
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */
+        leds_on(LEDS_GREEN);
         tsch_radio_on(TSCH_RADIO_CMD_ON_START_OF_TIMESLOT);
         /* Decide whether it is a TX/RX/IDLE or OFF slot */
         /* Actual slot operation */
@@ -1134,9 +1180,13 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           static struct pt slot_rx_pt;
           PT_SPAWN(&slot_operation_pt, &slot_rx_pt, tsch_rx_slot(&slot_rx_pt, t));
         }
-        //leds_off(LEDS_GREEN);
+        leds_off(LEDS_RED);
       //} else {
       //  printf("current_packet = NULL\n");
+      }else{
+      TSCH_LOG_ADD(tsch_log_message,
+          snprintf(log->message, sizeof(log->message),
+             "!is active is also 0"););
       }
       //notify nullnet-user of timeslot
       //set_timeslot_based_timer(current_link->timeslot, current_link->slotframe_handle);
@@ -1193,9 +1243,10 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
     }
 
     tsch_in_slot_operation = 0;
+    //LOG_TRACE("PT: tsch_slot_operation - next slot \n");
     PT_YIELD(&slot_operation_pt);
   }
-
+  //LOG_TRACE_RETURN("PT: tsch_slot_operation \n");
   PT_END(&slot_operation_pt);
 }
 /*---------------------------------------------------------------------------*/
@@ -1204,6 +1255,9 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
 void
 tsch_slot_operation_start(void)
 {
+  //Hier wird ein link gequeried bis das erste mal ein Link schedule klappt
+  //TODO:: wird die methode verlassen und dann nie wieder aufgerufen?
+  //LOG_INFO("tsch_slot_operation_start \n");
   static struct rtimer slot_operation_timer;
   rtimer_clock_t time_to_next_active_slot;
   rtimer_clock_t prev_slot_start;
@@ -1222,9 +1276,14 @@ tsch_slot_operation_start(void)
     /* Time to next wake up */
     time_to_next_active_slot = timeslot_diff * tsch_timing[tsch_ts_timeslot_length];
     /* Update current slot start */
+    LOG_INFO("current timeslot = %i \n", current_link->timeslot);
     prev_slot_start = current_slot_start;
     current_slot_start += time_to_next_active_slot;
   } while(!tsch_schedule_slot_operation(&slot_operation_timer, prev_slot_start, time_to_next_active_slot, "assoc"));
+    TSCH_LOG_ADD(tsch_log_message,
+          snprintf(log->message, sizeof(log->message),
+             "!leaving tsch:slot_operation_start"););
+  //LOG_INFO("RETURN: tsch_slot_operation_start \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Start actual slot operation */
@@ -1232,11 +1291,13 @@ void
 tsch_slot_operation_sync(rtimer_clock_t next_slot_start,
     struct tsch_asn_t *next_slot_asn)
 {
+  LOG_TRACE("tsch_slot_operation_sync \n");
   current_slot_start = next_slot_start;
   tsch_current_asn = *next_slot_asn;
   last_sync_asn = tsch_current_asn;
   last_sync_time = clock_time();
   current_link = NULL;
+  LOG_TRACE_RETURN("tsch_slot_operation_sync \n");
 }
 /*---------------------------------------------------------------------------*/
 /** @} */
