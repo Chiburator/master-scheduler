@@ -500,19 +500,20 @@ eb_input(struct input_packet *current_input)
 extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src, const uint16_t *seq_nr)
 {
   LOG_TRACE("neighbor_discovery_input \n");
-  //LOG_ERR("LinkAddress: ");
   short node=0;
   int i;
-  //src is char array. parste last part to short uint8 to get the node id
+
   for(i = 0; i < LINKADDR_SIZE; i++)
   {
-     // LOG_ERR("%i", src->u8[i]);
       node += src->u8[i];
   }
-   // LOG_ERR("\n and node is %i \n", node);
-  //e.g. packet 
-  missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
+  //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
   //Nodes start at 1 and array at 0 -> node-1
+  if(last_received_eb[node-1] != 0)
+  {
+    missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
+  }
+
   last_received_eb[node-1] = *data;
   received_eb[node-1] += 1;
 
