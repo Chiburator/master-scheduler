@@ -237,52 +237,99 @@ static void set_destination_link_addr(uint8_t destination_node_id)
 #endif /* MASTER_SCHEDULE */
 /*---------------------------------------------------------------------------*/
 #ifndef MASTER_SCHEDULE
-static int
-install_discovery_schedule()
-{
-  LOG_TRACE("install_discovery_schedule \n");
-  LOG_INFO("install discovery schedule\n");
-  uint8_t tx_slot;
-  uint16_t num_discovery_sending_slots;
-  tx_slot = get_destination_index(node_id);
+  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+    void send_metric()
+    {
+      sf[0] = tsch_schedule_get_slotframe_by_handle(0);
+      if (sf[0])
+      {
+        tsch_schedule_remove_slotframe(sf[0]);
+      }
 
-  if (deployment_node_count % 2 == 0)
-  {
-    num_discovery_sending_slots = deployment_node_count;
-  }
-  else
-  {
-    num_discovery_sending_slots = deployment_node_count + 1;
-  }
-  /* Create slotframe sf1 */
-  sf[1] = tsch_schedule_get_slotframe_by_handle(1);
-  if (sf[1])
-  {
-    tsch_schedule_remove_slotframe(sf[1]);
-  }
-  sf[1] = tsch_schedule_add_slotframe(1, num_discovery_sending_slots);
+      sf[1] = tsch_schedule_get_slotframe_by_handle(1);
+      if (sf[1])
+      {
+        tsch_schedule_remove_slotframe(sf[1]);
+      }
 
-  sf[2] = tsch_schedule_get_slotframe_by_handle(2);
-  if (sf[2])
-  {
-    tsch_schedule_remove_slotframe(sf[2]);
-  }
-  sf[2] = tsch_schedule_add_slotframe(2, 1);
+      sf[0] = tsch_schedule_add_slotframe(0, 1);
 
-  tsch_schedule_add_link(sf[2], LINK_OPTION_RX, LINK_TYPE_NORMAL, &tsch_broadcast_address, 0, 0);
-  if (tx_slot < num_discovery_sending_slots)
-  {
-    tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_NORMAL, &tsch_broadcast_address, tx_slot, 0);
-    own_transmission_flow = 1;
-    is_sender = 1;
-    //LOG_INFO("sender\n");
-    own_receiver = 0;
-    LOG_TRACE_RETURN("install_discovery_schedule \n");
-    return 1;
-  }
-  LOG_TRACE_RETURN("install_discovery_schedule \n");
-  return 0;
-}
+      tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_NORMAL, &coordinator_addr, 0, 0);
+
+      if(tsch_is_coordinator)
+      {
+      LOG_INFO("MissedEB 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", missed_eb[0], missed_eb[1], missed_eb[2], missed_eb[3], missed_eb[4]);
+      }
+      else{
+      // uint8_t buf[MASTER_MSG_LENGTH];
+      // int i;
+      // for(i = 0; i < deployment_node_count; i++)
+      // {
+      //   memcpy(buf, missed_eb, sizeof(uint16_t)*deployment_node_count);
+      // }
+      leds_on(LEDS_RED);
+        sf[1] = tsch_schedule_add_slotframe(1, deployment_node_count);
+
+        tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_NORMAL, &coordinator_addr, node_id-1, 0);
+
+        mrp.flow_number = node_id; 
+        mrp.packet_number = ++own_packet_number;
+        memcpy(&(mrp.data), missed_eb, sizeof(uint16_t)*deployment_node_count);
+        sent_packet_configuration.max_tx = 2;   //increase retransmits in order to evade missing packets when CPAN is building the new schedule
+        masternet_len = minimal_routing_packet_size + sizeof(uint16_t)*deployment_node_count;
+        LOG_INFO("trying to send;%u;%u\n", node_id, own_packet_number);
+        NETSTACK_NETWORK.output(&coordinator_addr);
+      leds_off(LEDS_RED);
+      }
+    }
+  #else
+    static int
+    install_discovery_schedule()
+    {
+      LOG_TRACE("install_discovery_schedule \n");
+      LOG_INFO("install discovery schedule\n");
+      uint8_t tx_slot;
+      uint16_t num_discovery_sending_slots;
+      tx_slot = get_destination_index(node_id);
+
+      if (deployment_node_count % 2 == 0)
+      {
+        num_discovery_sending_slots = deployment_node_count;
+      }
+      else
+      {
+        num_discovery_sending_slots = deployment_node_count + 1;
+      }
+      /* Create slotframe sf1 */
+      sf[1] = tsch_schedule_get_slotframe_by_handle(1);
+      if (sf[1])
+      {
+        tsch_schedule_remove_slotframe(sf[1]);
+      }
+      sf[1] = tsch_schedule_add_slotframe(1, num_discovery_sending_slots);
+
+      sf[2] = tsch_schedule_get_slotframe_by_handle(2);
+      if (sf[2])
+      {
+        tsch_schedule_remove_slotframe(sf[2]);
+      }
+      sf[2] = tsch_schedule_add_slotframe(2, 1);
+
+      tsch_schedule_add_link(sf[2], LINK_OPTION_RX, LINK_TYPE_NORMAL, &tsch_broadcast_address, 0, 0);
+      if (tx_slot < num_discovery_sending_slots)
+      {
+        tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_NORMAL, &tsch_broadcast_address, tx_slot, 0);
+        own_transmission_flow = 1;
+        is_sender = 1;
+        //LOG_INFO("sender\n");
+        own_receiver = 0;
+        LOG_TRACE_RETURN("install_discovery_schedule \n");
+        return 1;
+      }
+      LOG_TRACE_RETURN("install_discovery_schedule \n");
+      return 0;
+    }
+  #endif
 #endif /* !MASTER_SCHEDULE */
 /*---------------------------------------------------------------------------*/
 /**
@@ -316,19 +363,19 @@ static void
 master_install_schedule(void *ptr)
 {
   LOG_TRACE("master_install_schedule \n");
-  LOG_INFO("Missed Packets:\n");
-  LOG_INFO("MissedEB 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", missed_eb[0], missed_eb[1], missed_eb[2], missed_eb[3], missed_eb[4]);
-  LOG_INFO("LastReceived 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", last_received_eb[0], last_received_eb[1], last_received_eb[2], last_received_eb[3], last_received_eb[4]);
-  LOG_INFO("TotalReceived 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", received_eb[0], received_eb[1], received_eb[2], received_eb[3], received_eb[4]);
   LOG_INFO("install schedule\n");
   tsch_set_eb_period(TSCH_EB_PERIOD);
-  tsch_schedule_remove_slotframe(sf[0]);
-  sf[0] = tsch_schedule_add_slotframe(0, MASTER_EBSF_PERIOD);
-  tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
 #ifdef MASTER_SCHEDULE
 #include MASTER_SCHEDULE
 #else
-  install_discovery_schedule();
+  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+    send_metric();
+  #else
+    tsch_schedule_remove_slotframe(sf[0]);
+    sf[0] = tsch_schedule_add_slotframe(0, MASTER_EBSF_PERIOD);
+    tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
+    install_discovery_schedule();
+  #endif
   //TODOLIV: log success of schedule installation -> unsuccessful means not large enough sf size
 #endif /* MASTER_SCHEDULE */
   is_configured = 1;
@@ -349,18 +396,30 @@ void master_routing_set_input_callback(master_routing_input_callback callback)
 /*---------------------------------------------------------------------------*/
 void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
-  LOG_TRACE("master_routing_input \n");
-  leds_on(LEDS_RED);
+  LOG_INFO("master_routing_input \n");
+  //leds_on(LEDS_RED);
+  LOG_INFO("len %i and boundary %i %i\n", len, minimal_routing_packet_size, maximal_routing_packet_size);
   if (len >= minimal_routing_packet_size && len <= maximal_routing_packet_size)
   {
     uint8_t forward_to_upper_layer = 0;
     memcpy(&mrp, data, len);
+    LOG_INFO("first if? \n");
 #ifndef MASTER_SCHEDULE
     //neighbor discovery
     //As long as no master schedule is registert, log the packets for master
+  LOG_INFO("before the if? \n");
+  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+    LOG_INFO("get array elements \n");
+    uint16_t buf[sizeof(uint16_t)*deployment_node_count];
+    memcpy(buf, mrp.data, sizeof(uint16_t)*deployment_node_count);
+    LOG_INFO("MissedEB - FROM %i 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", mrp.flow_number, buf[0], buf[1], buf[2], buf[3], buf[4]);
+  #else
+    LOG_INFO("in the else\n");
     uint8_t sender = mrp.flow_number;
     LOG_INFO("rcvd;%u;%u;%u;%u;%d\n", node_id, sender, packetbuf_attr(PACKETBUF_ATTR_CHANNEL), mrp.packet_number, (int16_t)packetbuf_attr(PACKETBUF_ATTR_RSSI)); //rcvd;<to>;<from>;<channel>;<number>;<rssi>
     forward_to_upper_layer = 1;
+  #endif
+    LOG_INFO("after all ifs\n");
 #else //normal operation
     uint16_t received_asn = packetbuf_attr(PACKETBUF_ATTR_RECEIVED_ASN);
 
@@ -437,7 +496,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
 #endif /* MASTER_SCHEDULE */
     }
   }
-  leds_off(LEDS_RED);
+  //leds_off(LEDS_RED);
   LOG_TRACE_RETURN("master_routing_input \n");
 }
 /*---------------------------------------------------------------------------*/
@@ -629,7 +688,6 @@ void init_master_routing(void)
     tsch_set_coordinator(linkaddr_cmp(&coordinator_addr, &linkaddr_node_addr));
     //The Enhanced beacon timer
     tsch_set_eb_period(CLOCK_SECOND / 10);
-        LOG_INFO("set EBBBB\n");
 #endif /* MAC_CONF_WITH_TSCH */
 
     /* Initialize MasterNet */
@@ -644,22 +702,27 @@ void init_master_routing(void)
 
     tsch_schedule_remove_all_slotframes();
     #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-      sf[0] = tsch_schedule_add_slotframe(0, NUM_COOJA_NODES);
-      int i;
-      for(i = 0; i < NUM_COOJA_NODES; i++)
-      {
-        if(node_id == i+1)
-        {
-        tsch_schedule_add_link(sf[0], LINK_OPTION_TX , LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, i, 0);
-        }else{
-        tsch_schedule_add_link(sf[0], LINK_OPTION_RX , LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, i, 0);
-        }
-      }
+      // sf[0] = tsch_schedule_add_slotframe(0, NUM_COOJA_NODES);
+      // int i;
+      // for(i = 0; i < NUM_COOJA_NODES; i++)
+      // {
+      //   if(node_id == i+1)
+      //   {
+      //   tsch_schedule_add_link(sf[0], LINK_OPTION_TX , LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, i, 0);
+      //   }else{
+      //   tsch_schedule_add_link(sf[0], LINK_OPTION_RX , LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, i, 0);
+      //   }
+      // }
+      sf[0] = tsch_schedule_add_slotframe(0, 1);    //Listen on this every frame where the nodes doesnt send
+      sf[1] = tsch_schedule_add_slotframe(1, NUM_COOJA_NODES); //send in this frame every "node_count"
+      tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
+      tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, node_id-1, 0);
     #else
       sf[0] = tsch_schedule_add_slotframe(0, 1);
       tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
     #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
+    LOG_INFO("boundary %i %i %i\n", minimal_routing_packet_size, maximal_routing_packet_size, sizeof(master_routing_packet_t));
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
     ctimer_set(&install_schedule_timer, MASTER_INIT_PERIOD, master_install_schedule, NULL);
     started = 1;

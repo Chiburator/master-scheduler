@@ -355,7 +355,7 @@ tsch_schedule_get_next_active_link(struct tsch_asn_t *asn, uint16_t *time_offset
         uint16_t time_to_timeslot =
           l->timeslot > timeslot ?
           l->timeslot - timeslot :
-          sf->size.val + l->timeslot - timeslot;
+          sf->size.val + l->timeslot - timeslot;  //increase the size of the slotframe when the link
         if(curr_best == NULL || time_to_timeslot < time_to_curr_best) {
           time_to_curr_best = time_to_timeslot;
           curr_best = l;

@@ -548,7 +548,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
   PT_BEGIN(pt);
 
   TSCH_DEBUG_TX_EVENT();
-  //leds_on(LEDS_RED);
+  leds_on(LEDS_GREEN);
   /* First check if we have space to store a newly dequeued packet (in case of
    * successful Tx or Drop) */
   dequeued_index = ringbufindex_peek_put(&dequeued_ringbuf);
@@ -646,7 +646,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
           TSCH_LOG_ADD(tsch_log_message,
           snprintf(log->message, sizeof(log->message),
           "transmitting Finished"));
-          leds_off(LEDS_GREEN);
+          //leds_off(LEDS_GREEN);
 
           if(mac_tx_status == RADIO_TX_OK) {
             //TOGGLE_PIN_ADC2;
@@ -827,7 +827,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
     /* Poll process for later processing of packet sent events and logs */
     process_poll(&tsch_pending_events_process);
   }
-  //leds_off(LEDS_RED);
+  leds_off(LEDS_GREEN);
   TSCH_DEBUG_TX_EVENT();
   LOG_TRACE_RETURN("PT: tsch_tx_slot \n");
   PT_END(pt);
@@ -893,7 +893,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       //UNSET_PIN_ADC2;
       //SET_PIN_ADC2;
       /* no packets on air */
-      leds_off(LEDS_GREEN);
+      //leds_off(LEDS_GREEN);
       tsch_radio_off(TSCH_RADIO_CMD_OFF_FORCE);
     } else {
       TSCH_DEBUG_RX_EVENT();
@@ -906,7 +906,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       TSCH_DEBUG_RX_EVENT();
       //UNSET_PIN_ADC2;
       //SET_PIN_ADC2;
-      leds_off(LEDS_GREEN);
+      //leds_off(LEDS_GREEN);
       tsch_radio_off(TSCH_RADIO_CMD_OFF_WITHIN_TIMESLOT);
 
       if(NETSTACK_RADIO.pending_packet()) {
@@ -1148,12 +1148,12 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       // }
 
       if(is_active_slot) {
-        leds_on(LEDS_RED);
+        //leds_on(LEDS_RED);
         /* Hop channel */
         current_channel = tsch_calculate_channel(&tsch_current_asn, current_link->channel_offset);
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */
-        leds_on(LEDS_GREEN);
+        //leds_on(LEDS_GREEN);
         tsch_radio_on(TSCH_RADIO_CMD_ON_START_OF_TIMESLOT);
         /* Decide whether it is a TX/RX/IDLE or OFF slot */
         /* Actual slot operation */
@@ -1180,7 +1180,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           static struct pt slot_rx_pt;
           PT_SPAWN(&slot_operation_pt, &slot_rx_pt, tsch_rx_slot(&slot_rx_pt, t));
         }
-        leds_off(LEDS_RED);
+        //leds_off(LEDS_RED);
       //} else {
       //  printf("current_packet = NULL\n");
       }else{

@@ -78,7 +78,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH"
-#define LOG_LEVEL LOG_LEVEL_NONE
+#define LOG_LEVEL LOG_LEVEL_INFO
 
 #if TSCH_DEBUG_PRINT
 #include <stdio.h>
@@ -179,9 +179,9 @@ static uint8_t tsch_packet_seqno;
 static clock_time_t tsch_current_eb_period;
 /* Current period for keepalive output */
 static clock_time_t tsch_current_ka_timeout;
-short last_received_eb[NUM_COOJA_NODES]; 
-short missed_eb[NUM_COOJA_NODES]; 
-short received_eb[NUM_COOJA_NODES]; 
+uint16_t last_received_eb[NUM_COOJA_NODES]; 
+uint16_t missed_eb[NUM_COOJA_NODES]; 
+uint16_t received_eb[NUM_COOJA_NODES]; 
 //uint8_t num_eb_packets = 0;
 //uint8_t num_packets = 0;
 
@@ -693,6 +693,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
     LOG_TRACE_RETURN("tsch_associate \n");
     return 0;
   }
+  LOG_INFO("Got this pid %x from src %i", frame.src_pid, frame.src_addr[0]);
 #endif /* TSCH_JOIN_MY_PANID_ONLY */
 
   /* There was no join priority (or 0xff) in the EB, do not join */
@@ -1183,6 +1184,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
   //printf("add packet to queue!\n");
   int ret = MAC_TX_DEFERRED;
   int hdr_len = 0;
+  //Get the receiver for this packet. Set in master-net - output
   const linkaddr_t *addr = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
   uint8_t max_transmissions = 0;
 #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
@@ -1200,6 +1202,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
       LOG_WARN("! not associated, drop outgoing packet\n");
     }
     ret = MAC_TX_ERR;
+    //In master-net no callback is configured
     mac_call_sent_callback(sent, ptr, ret, 1);
     LOG_TRACE_RETURN("send_packet \n");
     return;
@@ -1271,6 +1274,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
   }
 #endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */
 
+  //Create the link-layer header from the packetbuff
   if ((hdr_len = NETSTACK_FRAMER.create()) < 0)
   {
     LOG_ERR("! can't send packet due to framer error\n");
@@ -1292,6 +1296,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
       p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
     }
 #else
+    //Create a tsch_packet from the packetbuffer and add it to queue
     /* Enqueue packet */
     p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
 #endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */

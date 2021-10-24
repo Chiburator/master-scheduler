@@ -233,6 +233,7 @@ frame80215e_create_ie_mlme(uint8_t *buf, int len,
   }
 }
 
+//MAC sublayer management entity Information Element = MLME IE
 /* MLME sub-IE. TSCH synchronization. Used in EBs: ASN and join priority */
 int
 frame80215e_create_ie_tsch_synchronization(uint8_t *buf, int len,
