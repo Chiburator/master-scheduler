@@ -88,7 +88,7 @@ typedef struct __attribute__((packed))
   const uint8_t channel_offset;
 } scheduled_link_t;
 
-static master_routing_packet_t mrp; //masternet_routing_packet (mrp)
+static master_routing_packet_t mrp; //masternet_routing_packet   (mrp)
 
 #ifdef MASTER_SCHEDULE
 static hash_table_t forward_to;                           //forward to next node, later not needed anymore //TODO: different hash_table sizes?, or size of flow!
