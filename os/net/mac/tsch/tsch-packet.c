@@ -65,6 +65,11 @@
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 uint16_t sequence_number = 0;
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
+
+#if TSCH_PACKET_EB_WITH_RANK
+uint8_t tsch_rank = 255;
+#endif
+
 /*
  * We use a local packetbuf_attr array to collect necessary frame settings to
  * create an EACK because EACK is generated in the interrupt context where
@@ -299,6 +304,11 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   ies.ie_sequence_number = ++sequence_number;
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
+
+#if TSCH_PACKET_EB_WITH_RANK
+  ies.ie_rank = tsch_rank;
+#endif /* TSCH_PACKET_EB_WITH_RANK */
+
   LOG_INFO("EBSend;%i;%i\n", linkaddr_node_addr.u8[0], ies.ie_sequence_number);
   p = packetbuf_dataptr();
 
@@ -353,6 +363,18 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   p += ie_len;
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
+
+#if TSCH_PACKET_EB_WITH_RANK
+  ie_len = frame80215e_create_ie_tsch_rank(p,
+                                           packetbuf_remaininglen(),
+                                           &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+  p += ie_len;
+  packetbuf_set_datalen(packetbuf_datalen() + ie_len);
+#endif /* TSCH_PACKET_EB_WITH_RANK */
 
 #if 0
   /* Payload IE list termination: optional */

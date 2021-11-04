@@ -684,10 +684,15 @@ void init_master_routing(void)
 #endif /* CONTIKI_TARGET_ZOUL && defined(MASTER_CONF_CC2538_TX_POWER) */
 
 #if MAC_CONF_WITH_TSCH
+    int isCoordinator = linkaddr_cmp(&coordinator_addr, &linkaddr_node_addr);
     //E.G Node 1 of 5 will be the coordinator of the network
-    tsch_set_coordinator(linkaddr_cmp(&coordinator_addr, &linkaddr_node_addr));
+    tsch_set_coordinator(isCoordinator);
     //The Enhanced beacon timer
     tsch_set_eb_period(CLOCK_SECOND / 10);
+    #if TSCH_PACKET_EB_WITH_RANK
+      if(isCoordinator)
+        tsch_set_rank(0);
+    #endif
 #endif /* MAC_CONF_WITH_TSCH */
 
     /* Initialize MasterNet */

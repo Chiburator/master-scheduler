@@ -203,6 +203,27 @@ tsch_queue_update_time_source(const linkaddr_t *new_addr)
   return 0;
 }
 /*---------------------------------------------------------------------------*/
+#if TSCH_PACKET_EB_WITH_RANK
+void tsch_queue_update_time_source_rank(const uint8_t time_source_rank)
+{
+  struct tsch_neighbor *time_src = tsch_queue_get_time_source();
+  time_src->rank = time_source_rank;
+}
+
+void tsch_queue_update_neighbour_rank(const linkaddr_t *neighbour_addr, const uint8_t rank)
+{
+  if(neighbour_addr == NULL)
+    return;
+
+  struct tsch_neighbor* nbr = tsch_queue_get_nbr(neighbour_addr);
+  if(nbr == NULL)
+    return;
+
+  nbr->rank = rank;
+}
+
+#endif
+/*---------------------------------------------------------------------------*/
 /* Flush a neighbor queue */
 static void
 tsch_queue_flush_nbr_queue(struct tsch_neighbor *n)

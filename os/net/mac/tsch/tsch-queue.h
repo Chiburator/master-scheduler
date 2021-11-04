@@ -149,6 +149,9 @@ struct tsch_neighbor {
   linkaddr_t addr; /* MAC address of the neighbor */
   uint8_t is_broadcast; /* is this neighbor a virtual neighbor used for broadcast (of data packets or EBs) */
   uint8_t is_time_source; /* is this neighbor a time source? */
+#if TSCH_PACKET_EB_WITH_RANK
+  uint8_t rank; /* is this neighbor a time source? */
+#endif
   uint8_t backoff_exponent; /* CSMA backoff exponent */
   uint8_t backoff_window; /* CSMA backoff window (number of slots to skip) */
   uint8_t last_backoff_window; /* Last CSMA backoff window */
@@ -216,6 +219,11 @@ void tsch_queue_backoff_inc(struct tsch_neighbor *n);
 void tsch_queue_update_all_backoff_windows(const linkaddr_t *dest_addr);
 /* Initialize TSCH queue module */
 void tsch_queue_init(void);
+
+#if TSCH_PACKET_EB_WITH_RANK
+void tsch_queue_update_time_source_rank(const uint8_t time_source_rank);
+void tsch_queue_update_neighbour_rank(const linkaddr_t *neighbour_addr, const uint8_t time_source_rank);
+#endif
 
 #endif /* __TSCH_QUEUE_H__ */
 /** @} */

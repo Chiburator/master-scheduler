@@ -219,6 +219,8 @@ void tsch_set_ka_timeout(uint32_t timeout);
 void tsch_set_coordinator(int enable);
 /* Set the pan as secured or not */
 void tsch_set_pan_secured(int enable);
+/* Set the node rank of the node */
+void tsch_set_rank(int rank);
 
 #endif /* __TSCH_H__ */
 /** @} */
