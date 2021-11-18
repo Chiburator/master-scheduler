@@ -151,6 +151,7 @@ struct tsch_neighbor {
   uint8_t is_time_source; /* is this neighbor a time source? */
 #if TSCH_PACKET_EB_WITH_RANK
   uint8_t rank; /* is this neighbor a time source? */
+  uint8_t time_source; /* is this neighbor a time source? */
 #endif
   uint8_t backoff_exponent; /* CSMA backoff exponent */
   uint8_t backoff_window; /* CSMA backoff window (number of slots to skip) */
@@ -178,6 +179,11 @@ extern struct tsch_neighbor *n_eb;
 struct tsch_neighbor *tsch_queue_add_nbr(const linkaddr_t *addr);
 /* Get a TSCH neighbor */
 struct tsch_neighbor *tsch_queue_get_nbr(const linkaddr_t *addr);
+/* Get the first TSCH neighbor */
+struct tsch_neighbor *tsch_queue_first_nbr();
+/* Get the following TSCH neighbor */
+struct tsch_neighbor *tsch_queue_next_nbr(struct tsch_neighbor *addr);
+int tsch_queue_count_nbr();
 /* Get a TSCH time source (we currently assume there is only one) */
 struct tsch_neighbor *tsch_queue_get_time_source(void);
 /* Update TSCH time source */
@@ -222,7 +228,7 @@ void tsch_queue_init(void);
 
 #if TSCH_PACKET_EB_WITH_RANK
 void tsch_queue_update_time_source_rank(const uint8_t time_source_rank);
-void tsch_queue_update_neighbour_rank(const linkaddr_t *neighbour_addr, const uint8_t time_source_rank);
+void tsch_queue_update_neighbour_rank_and_time_source(const linkaddr_t *neighbour_addr, const uint8_t time_source_rank, const uint8_t time_source);
 #endif
 
 #endif /* __TSCH_QUEUE_H__ */

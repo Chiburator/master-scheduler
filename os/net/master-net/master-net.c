@@ -57,26 +57,28 @@
 
 uint8_t *masternet_buf;
 uint16_t masternet_len;
-static masternet_input_callback current_callback = NULL;
+void *data;
+static masternet_input_callback current_input_callback = NULL;
+static mac_callback_t current_output_callback = NULL;
 static masternet_config_callback config_callback = NULL;
 /*--------------------------------------------------------------------*/
 static void
 init(void)
 {
   LOG_INFO("init\n");
-  current_callback = NULL;
+  current_input_callback = NULL;
 }
 /*--------------------------------------------------------------------*/
 static void
 input(void)
 {
   LOG_TRACE("input \n");
-  if(current_callback != NULL) {
+  if(current_input_callback != NULL) {
     //below: might be too verbose timing wise
     LOG_INFO("received %u bytes from ", packetbuf_datalen());
     LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
     LOG_INFO_("\n");
-    current_callback(packetbuf_dataptr(), packetbuf_datalen(),
+    current_input_callback(packetbuf_dataptr(), packetbuf_datalen(),
       packetbuf_addr(PACKETBUF_ADDR_SENDER), packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
   }
   LOG_TRACE_RETURN("input \n");
@@ -86,7 +88,15 @@ void
 masternet_set_input_callback(masternet_input_callback callback)
 {
   LOG_TRACE("masternet_set_input_callback \n");
-  current_callback = callback;
+  current_input_callback = callback;
+  LOG_TRACE_RETURN("masternet_set_input_callback \n");
+}
+/*--------------------------------------------------------------------*/
+void
+masternet_set_output_callback(mac_callback_t callback)
+{
+  LOG_TRACE("masternet_set_input_callback \n");
+  current_output_callback = callback;
   LOG_TRACE_RETURN("masternet_set_input_callback \n");
 }
 /*--------------------------------------------------------------------*/
@@ -104,6 +114,7 @@ output(const linkaddr_t *dest)
   LOG_TRACE("output \n");
   int framer_hdrlen;
   int max_payload;
+  
 
   leds_on(LEDS_YELLOW);
 
@@ -126,6 +137,11 @@ output(const linkaddr_t *dest)
       packetbuf_set_attr(PACKETBUF_ATTR_TRANSMISSION_TTL, packet_configuration.ttl_slot_number);
       packetbuf_set_attr(PACKETBUF_ATTR_EARLIEST_TX_SLOT, packet_configuration.earliest_tx_slot);
 #   endif /* TSCH_TTL_BASED_RETRANSMISSIONS */
+
+  #if TSCH_PACKET_EB_WITH_RANK
+    //The command will be transformed to a uint8_t
+    memcpy(data, &packet_configuration.command, 1);
+  #endif
   }
 
   if(dest != NULL) {
@@ -148,7 +164,7 @@ output(const linkaddr_t *dest)
     //LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
-    NETSTACK_MAC.send(NULL, NULL);
+    NETSTACK_MAC.send(current_output_callback, data);
     LOG_TRACE_RETURN("output \n");
     return 1;
   } else {

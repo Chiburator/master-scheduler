@@ -62,6 +62,10 @@ typedef struct master_packetbuf_config_t {
   uint16_t flow_number;
 # endif /* TSCH_FLOW_BASED_QUEUES */
   uint16_t max_tx;
+#if TSCH_PACKET_EB_WITH_RANK
+  //The command will be transformed to a uint8_t
+  uint8_t command;
+#endif
 } master_packetbuf_config_t;
 
 /* Sicslowpan adaptation */
@@ -92,6 +96,12 @@ typedef void (* masternet_input_callback)(const void *data, uint16_t len,
 */
 void masternet_set_input_callback(masternet_input_callback callback);
 
+/**
+ * Set input callback for MasterNet
+ *
+ * \param callback The input callback
+*/
+void masternet_set_output_callback(mac_callback_t callback);
 
 
 /**

@@ -81,6 +81,7 @@ struct ieee802154_ies {
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 #if TSCH_PACKET_EB_WITH_RANK
   uint8_t ie_rank;
+  uint8_t ie_time_source;
 #endif
   /* Payload Long MLME IEs */
   uint8_t ie_channel_hopping_sequence_id;
@@ -136,6 +137,8 @@ int frame80215e_create_ie_tsch_neighbor_discovery(uint8_t *buf, int len,
 
 #if TSCH_PACKET_EB_WITH_RANK
 int frame80215e_create_ie_tsch_rank(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
+int frame80215e_create_ie_time_source(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 #endif /* TSCH_PACKET_EB_WITH_RANK */
 

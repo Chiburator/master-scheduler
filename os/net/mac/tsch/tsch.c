@@ -63,6 +63,8 @@
 #include "net/mac/mac-sequence.h"
 #include "lib/random.h"
 
+uint16_t counter_test = 0;
+
 #if UIP_CONF_IPV6_RPL
 #include "net/mac/tsch/tsch-rpl.h"
 #endif /* UIP_CONF_IPV6_RPL */
@@ -181,7 +183,8 @@ static clock_time_t tsch_current_eb_period;
 static clock_time_t tsch_current_ka_timeout;
 uint16_t last_received_eb[NUM_COOJA_NODES]; 
 uint16_t missed_eb[NUM_COOJA_NODES]; 
-uint16_t received_eb[NUM_COOJA_NODES]; 
+uint16_t first_received_eb[NUM_COOJA_NODES]; 
+uint8_t etx_links[NUM_COOJA_NODES]; 
 //uint8_t num_eb_packets = 0;
 //uint8_t num_packets = 0;
 
@@ -420,15 +423,14 @@ eb_input(struct input_packet *current_input)
   {
     /* PAN ID check and authentication done at rx time */
 
+    //TODO: This does not do what is says it does!!! 
+    
     /* Got an EB from a different neighbor than our time source, keep enough data
      * to switch to it in case we lose the link to our time source */
     struct tsch_neighbor *ts = tsch_queue_get_time_source();
     if (ts == NULL || !linkaddr_cmp(&last_eb_nbr_addr, &ts->addr))
     {
       linkaddr_copy(&last_eb_nbr_addr, (linkaddr_t *)&frame.src_addr);
-    #if TSCH_PACKET_EB_WITH_RANK
-      tsch_queue_update_neighbour_rank(&last_eb_nbr_addr, eb_ies.ie_rank);
-    #endif
       last_eb_nbr_jp = eb_ies.ie_join_priority;
     }
 
@@ -510,7 +512,16 @@ eb_input(struct input_packet *current_input)
         tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
         tsch_queue_update_time_source_rank(eb_ies.ie_rank);
         tsch_rank = eb_ies.ie_rank + 1;
-        LOG_INFO("Got rank from new src %u and set my to %u", eb_ies.ie_rank, tsch_rank);
+        LOG_INFO("Got rank %u from new src %u and my rank was %u \n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank);
+      }
+      else{
+        
+        struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
+        tsch_queue_update_neighbour_rank_and_time_source(&n->addr, eb_ies.ie_rank, eb_ies.ie_time_source);
+        LOG_INFO("Got neighbour");
+        LOG_INFO_LLADDR(&n->addr);
+        LOG_INFO("\n");
+        LOG_INFO("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
       }
     #endif
     }
@@ -535,15 +546,17 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
   }
   //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
   //Nodes start at 1 and array at 0 -> node-1
-  if(last_received_eb[node-1] != 0)
+  if(last_received_eb[node-1] == 0)
   {
-    missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
+    first_received_eb[node-1] = *data;
+    last_received_eb[node-1] = *data;
+    return;
   }
 
+  missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
   last_received_eb[node-1] = *data;
-  received_eb[node-1] += 1;
 
-  LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[0], node, *data);
+  LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], node, *data);
   LOG_TRACE_RETURN("neighbor_discovery_input \n");
   //TODO:: logging so bauen das ich checken kann ob es stimmt, dass eine hohe verlustrate vorliegt.
 }
@@ -569,7 +582,7 @@ tsch_rx_process_pending()
       TSCH_LOG_ADD(tsch_log_message,
                    snprintf(log->message, sizeof(log->message),
                             "[    RX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}",
-                            current_input->rx_asn.ms1b, current_input->rx_asn.ls4b,
+                            current_input->rx_asn.ms1b, (unsigned long)current_input->rx_asn.ls4b,
                             current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset));
       //LOG_ERR("[    RX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}\n",
       //  current_input->rx_asn.ms1b, current_input->rx_asn.ls4b,
@@ -621,7 +634,9 @@ tsch_tx_process_pending(void)
     /* Free packet queuebuf */
     tsch_queue_free_packet(p);
     /* Free all unused neighbors */
+  #ifndef TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     tsch_queue_free_unused_neighbors();
+  #endif
     /* Remove dequeued packet from ringbuf */
     ringbufindex_get(&dequeued_ringbuf);
   }
@@ -1178,7 +1193,6 @@ tsch_init(void)
     {
       last_received_eb[i] = 0;
       missed_eb[i] = 0;
-      received_eb[i] = 0;
     }
   #endif
 
@@ -1307,6 +1321,17 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 #endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */
 
   //Create the link-layer header from the packetbuff
+  // if(packetbuf_addr(PACKETBUF_ADDR_SENDER)->u8[0] == 4)
+  // {
+  //   char str[256];
+  //   int i;
+  //   for (i = 0; i < packetbuf_totlen(); i++) {
+  //     sprintf(&str[i*2], "%02X", ((uint8_t*)packetbuf_hdrptr())[i]);
+  //   }
+  //   LOG_INFO("Packet LEN =%u\n", packetbuf_totlen());
+
+  //   LOG_INFO("Packet before frame create %s\n", str);
+  // }
   if ((hdr_len = NETSTACK_FRAMER.create()) < 0)
   {
     LOG_ERR("! can't send packet due to framer error\n");
@@ -1315,6 +1340,17 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
   }
   else
   {
+  // if(packetbuf_addr(PACKETBUF_ADDR_SENDER)->u8[0] == 4)
+  // {
+  //   char str[256];
+  //   int i;
+  //   for (i = 0; i < packetbuf_totlen(); i++) {
+  //     sprintf(&str[i*2], "%02X", ((uint8_t*)packetbuf_hdrptr())[i]);
+  //   }
+  //   LOG_INFO("Packet LEN =%u\n", packetbuf_totlen());
+
+  //   LOG_INFO("Packet after frame create %s\n", str);
+  // }
     struct tsch_packet *p;
 #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
     if (addr != &tsch_broadcast_address)

@@ -293,5 +293,12 @@
 #define TSCH_DEBUG_PRINT 0
 #endif
 
+# if defined(CONTIKI_TARGET_SKY) || defined(CONTIKI_TARGET_COOJA)
+# define NODE_ID_INDEX 0
+# else
+# define NODE_ID_INDEX 7
+# endif
+
+
 #endif /* __TSCH_CONF_H__ */
 /** @} */

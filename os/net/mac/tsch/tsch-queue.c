@@ -79,7 +79,7 @@ extern uint8_t perform_retransmission(struct tsch_link *link);
 
 /* We have as many packets are there are queuebuf in the system */
 MEMB(packet_memb, struct tsch_packet, QUEUEBUF_NUM);
-MEMB(neighbor_memb, struct tsch_neighbor, TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
+MEMB(neighbor_memb, struct tsch_neighbor, 18);//TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
 LIST(neighbor_list);
 
 /* Broadcast and EB virtual neighbors */
@@ -134,6 +134,54 @@ tsch_queue_get_nbr(const linkaddr_t *addr)
     }
   }
   return NULL;
+}
+/*---------------------------------------------------------------------------*/
+/* Get the first TSCH neighbor */
+struct tsch_neighbor *tsch_queue_first_nbr()
+{
+  if(!tsch_is_locked()) {
+    struct tsch_neighbor *n = list_head(neighbor_list);
+    while(linkaddr_cmp(&n->addr, &tsch_broadcast_address) || 
+          linkaddr_cmp(&n->addr, &tsch_eb_address))
+    {
+      n = list_item_next(n);
+    }
+    return n;
+  }
+  return NULL;
+}
+/*---------------------------------------------------------------------------*/
+/* Get the following TSCH neighbor */
+struct tsch_neighbor *tsch_queue_next_nbr(struct tsch_neighbor *neighbour)
+{
+  if(!tsch_is_locked()) {
+    struct tsch_neighbor *n = list_item_next(neighbour);
+    while(linkaddr_cmp(&n->addr, &tsch_broadcast_address) || 
+          linkaddr_cmp(&n->addr, &tsch_eb_address))
+    {
+      n = list_item_next(n);
+    }
+    return n;
+  }
+  return NULL;
+}
+
+int tsch_queue_count_nbr()
+{
+  int count = 0;
+  if(!tsch_is_locked()) {
+    struct tsch_neighbor *n = list_head(neighbor_list);
+    while(n != NULL)
+    {
+      if(!linkaddr_cmp(&n->addr, &tsch_broadcast_address) && 
+         !linkaddr_cmp(&n->addr, &tsch_eb_address))
+      {
+        count++;
+      }
+       n = list_item_next(n);
+    }
+  }
+  return count;
 }
 /*---------------------------------------------------------------------------*/
 /* Get a TSCH time source (we currently assume there is only one) */
@@ -210,7 +258,7 @@ void tsch_queue_update_time_source_rank(const uint8_t time_source_rank)
   time_src->rank = time_source_rank;
 }
 
-void tsch_queue_update_neighbour_rank(const linkaddr_t *neighbour_addr, const uint8_t rank)
+void tsch_queue_update_neighbour_rank_and_time_source(const linkaddr_t *neighbour_addr, const uint8_t rank, const uint8_t time_source)
 {
   if(neighbour_addr == NULL)
     return;
@@ -220,6 +268,7 @@ void tsch_queue_update_neighbour_rank(const linkaddr_t *neighbour_addr, const ui
     return;
 
   nbr->rank = rank;
+  nbr->time_source = time_source;
 }
 
 #endif
@@ -288,7 +337,7 @@ tsch_queue_add_packet(const linkaddr_t *addr, uint8_t max_transmissions,
           p->qb = queuebuf_new_from_packetbuf();
           //printf("p->qb != NULL? %u\n", p->qb != NULL);
           if(p->qb != NULL) {
-            leds_on(LEDS_YELLOW);
+            //leds_on(LEDS_YELLOW);
             //leds_on(LEDS_GREEN);
             p->sent = sent;
             p->ptr = ptr;
@@ -306,7 +355,7 @@ tsch_queue_add_packet(const linkaddr_t *addr, uint8_t max_transmissions,
             if(n == n_eb){
               ++num_eb_packets;
             }
-            leds_off(LEDS_YELLOW);
+            //leds_off(LEDS_YELLOW);
             return p;
           } else {
             memb_free(&packet_memb, p);

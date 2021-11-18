@@ -548,7 +548,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
   PT_BEGIN(pt);
 
   TSCH_DEBUG_TX_EVENT();
-  leds_on(LEDS_GREEN);
+  //leds_on(LEDS_GREEN);
   /* First check if we have space to store a newly dequeued packet (in case of
    * successful Tx or Drop) */
   dequeued_index = ringbufindex_peek_put(&dequeued_ringbuf);
@@ -624,6 +624,18 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
         } else
 #endif /* CCA_ENABLED */
         {
+          // if(queuebuf_addr(current_packet->qb, PACKETBUF_ADDR_ERECEIVER)->u8[0] == 1)
+          // {
+          //   char str[256];
+          //   int i;
+          //   for (i = 0; i < packet_len; i++) {
+          //     sprintf(&str[i*2], "%02X", ((uint8_t*)packet)[i]);
+          //   }
+          //   LOG_INFO("Packet LEN =%u\n", packet_len);
+
+          //   LOG_INFO("Packet %s\n", str);
+          // }
+
           /* delay before TX */
           TSCH_SCHEDULE_AND_YIELD(pt, t, current_slot_start, tsch_timing[tsch_ts_tx_offset] - RADIO_DELAY_BEFORE_TX, "TxBeforeTx");
           TSCH_DEBUG_TX_EVENT();
@@ -783,7 +795,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
             TSCH_LOG_ADD(tsch_log_message,
                       snprintf(log->message, sizeof(log->message),
                       "[    TX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}",
-                      tsch_current_asn.ms1b, tsch_current_asn.ls4b,
+                      tsch_current_asn.ms1b, (unsigned long)tsch_current_asn.ls4b,
                       current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset));
             //LOG_ERR("[    TX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}\n",
             //      tsch_current_asn.ms1b, tsch_current_asn.ls4b,
@@ -827,7 +839,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
     /* Poll process for later processing of packet sent events and logs */
     process_poll(&tsch_pending_events_process);
   }
-  leds_off(LEDS_GREEN);
+  //leds_off(LEDS_GREEN);
   TSCH_DEBUG_TX_EVENT();
   LOG_TRACE_RETURN("PT: tsch_tx_slot \n");
   PT_END(pt);
@@ -872,6 +884,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
     /* Default start time: expected Rx time */
     rx_start_time = expected_rx_time;
 
+    // Set the current_input to the array position where the packet will be written to
     current_input = &input_array[input_index];
 
     /* Wait before starting to listen */
@@ -919,6 +932,17 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
         /* Read packet */
         current_input->len = NETSTACK_RADIO.read((void *)current_input->payload, TSCH_PACKET_MAX_LEN);
         NETSTACK_RADIO.get_value(RADIO_PARAM_LAST_RSSI, &radio_last_rssi);
+        // if(linkaddr_node_addr.u8[0] == 1 && source_address.u8[0] == 5)
+        // {
+        //   char str[256];
+        //   int i;
+        //   for (i = 0; i < current_input->len; i++) {
+        //     sprintf(&str[i*2], "%02X", current_input->payload[i]);
+        //   }
+        //   LOG_INFO("ETX-Links Packet LEN =%u\n", current_input->len);
+
+        //   LOG_INFO("Packet %s\n", str);
+        // }
         current_input->rx_asn = tsch_current_asn;
         current_input->rssi = (signed)radio_last_rssi;
         current_input->channel = current_channel;
@@ -927,6 +951,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
         frame_valid = header_len > 0 &&
           frame802154_check_dest_panid(&frame) &&
           frame802154_extract_linkaddr(&frame, &source_address, &destination_address);
+
 
 #if TSCH_RESYNC_WITH_SFD_TIMESTAMPS
         /* At the end of the reception, get an more accurate estimate of SFD arrival time */
@@ -1098,8 +1123,6 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
   /* Loop over all active slots */
   while(tsch_is_associated) {
     //TOGGLE_PIN_ADC6;
-
-
     if(current_link == NULL || tsch_lock_requested) { /* Skip slot operation if there is no link
                                                           or if there is a pending request for getting the lock */
       /* Issue a log whenever skipping a slot */

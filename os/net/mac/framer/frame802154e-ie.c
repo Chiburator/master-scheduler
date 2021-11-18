@@ -80,6 +80,7 @@ enum ieee802154e_mlme_short_subie_id {
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 #if TSCH_PACKET_EB_WITH_RANK
   MLME_SHORT_IE_RANK,
+  MLME_SHORT_IE_TIME_SOURCE,
 #endif /* TSCH_PACKET_EB_WITH_RANK */
 };
 
@@ -377,6 +378,19 @@ frame80215e_create_ie_tsch_rank(uint8_t *buf, int len,
   create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_RANK, ie_len);
   return 2 + ie_len;
 }
+
+int
+frame80215e_create_ie_time_source(uint8_t *buf, int len,
+    struct ieee802154_ies *ies)
+{
+  int ie_len = 1;
+  if(len < 1 + ie_len || ies == NULL) {
+    return -1;
+  }
+  buf[2] = ies->ie_time_source;
+  create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_TIME_SOURCE, ie_len);
+  return 2 + ie_len;
+}
 #endif /* TSCH_PACKET_EB_WITH_RANK */
 
 /* Parse a header IE */
@@ -490,6 +504,14 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
       if (len == 1){
         if (ies != NULL){
           ies->ie_rank = buf[0];
+        }
+        return len;
+      }
+      break;
+    case MLME_SHORT_IE_TIME_SOURCE:
+      if (len == 1){
+        if (ies != NULL){
+          ies->ie_time_source = buf[0];
         }
         return len;
       }

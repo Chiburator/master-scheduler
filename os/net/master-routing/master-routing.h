@@ -44,11 +44,30 @@
 #include "master-conf.h"
 #include "net/linkaddr.h"
 
+enum phase
+{
+  ST_EB,
+  ST_BEGIN_GATHER_METRIC,
+  ST_POLL_NEIGHBOUR,
+  ST_SEND_METRIC,
+  ST_END,
+};
+
+enum commands
+{
+  CM_GET_ETX_METRIC = 1,
+  CM_ETX_METRIC,
+  CM_DATA,
+  CM_END,
+};
+
 /**
  * Function prototype for MasterRouting input callback
 */
 typedef void (* master_routing_input_callback)(const void *data, uint16_t len,
   uint8_t src, uint8_t dest);
+
+typedef void (* mac_callback_t)(void *ptr, int status, int transmissions);
 
 /**
  * Set input callback for MasterRouting
@@ -56,6 +75,13 @@ typedef void (* master_routing_input_callback)(const void *data, uint16_t len,
  * \param callback The input callback
 */
 void master_routing_set_input_callback(master_routing_input_callback callback);
+
+/**
+ * Set input callback for MasterRouting
+ *
+ * \param callback The input callback
+*/
+void master_routing_set_output_callback(mac_callback_t callback);
 
 int node_is_sender(void);
 
@@ -65,7 +91,6 @@ int master_routing_configured(void);
 
 //choose tx flow based on routing information
 int master_routing_send(const void *data, uint16_t datalen);
-
 
 int master_routing_sendto(const void *data, uint16_t datalen, uint8_t flow);
 

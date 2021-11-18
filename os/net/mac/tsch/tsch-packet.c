@@ -307,9 +307,10 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 
 #if TSCH_PACKET_EB_WITH_RANK
   ies.ie_rank = tsch_rank;
+  ies.ie_time_source = tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX];
 #endif /* TSCH_PACKET_EB_WITH_RANK */
 
-  LOG_INFO("EBSend;%i;%i\n", linkaddr_node_addr.u8[0], ies.ie_sequence_number);
+  LOG_INFO("EBSend;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], ies.ie_sequence_number);
   p = packetbuf_dataptr();
 
   ie_len = frame80215e_create_ie_tsch_synchronization(p,
@@ -368,6 +369,16 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   ie_len = frame80215e_create_ie_tsch_rank(p,
                                            packetbuf_remaininglen(),
                                            &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+  p += ie_len;
+  packetbuf_set_datalen(packetbuf_datalen() + ie_len);
+
+  ie_len = frame80215e_create_ie_time_source(p,
+                                             packetbuf_remaininglen(),
+                                             &ies);
   if (ie_len < 0)
   {
     return -1;

@@ -57,13 +57,14 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include <stdio.h>
 
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "MASTER-R"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 //MASTER_SLOTFRAME_LENGTH
 
@@ -114,6 +115,8 @@ static uint16_t own_packet_number = 0;
 static uint8_t own_receiver; //TODO: check if still needed, or if receiver_of_flow can be used
 static uint8_t own_transmission_flow = 0;
 static uint8_t is_sender = 0;
+enum phase current_state = ST_EB;
+struct tsch_neighbor* next_dest = NULL;
 
 #ifdef MASTER_SCHEDULE
 // scheduled with Master
@@ -132,6 +135,7 @@ static uint8_t started = 0;
 static uint8_t is_configured = 0;
 
 static master_routing_input_callback current_callback = NULL;
+static mac_callback_t current_output_callback = NULL;
 
 /*-------------------------- Routing configuration --------------------------*/
 
@@ -238,49 +242,182 @@ static void set_destination_link_addr(uint8_t destination_node_id)
 /*---------------------------------------------------------------------------*/
 #ifndef MASTER_SCHEDULE
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-    void send_metric()
+
+    void handle_convergcast()
     {
-      sf[0] = tsch_schedule_get_slotframe_by_handle(0);
-      if (sf[0])
-      {
-        tsch_schedule_remove_slotframe(sf[0]);
-      }
+      sent_packet_configuration.max_tx = 2; 
 
-      sf[1] = tsch_schedule_get_slotframe_by_handle(1);
-      if (sf[1])
-      {
-        tsch_schedule_remove_slotframe(sf[1]);
-      }
-
-      sf[0] = tsch_schedule_add_slotframe(0, 1);
-
-      tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_NORMAL, &coordinator_addr, 0, 0);
-
-      if(tsch_is_coordinator)
-      {
-      LOG_INFO("MissedEB 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", missed_eb[0], missed_eb[1], missed_eb[2], missed_eb[3], missed_eb[4]);
-      }
-      else{
-      // uint8_t buf[MASTER_MSG_LENGTH];
-      // int i;
-      // for(i = 0; i < deployment_node_count; i++)
-      // {
-      //   memcpy(buf, missed_eb, sizeof(uint16_t)*deployment_node_count);
-      // }
-      leds_on(LEDS_RED);
-        sf[1] = tsch_schedule_add_slotframe(1, deployment_node_count);
-
-        tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_NORMAL, &coordinator_addr, node_id-1, 0);
-
+      if(current_state == ST_POLL_NEIGHBOUR)
+      {      
+        //Prepare packet for get metrix command
         mrp.flow_number = node_id; 
         mrp.packet_number = ++own_packet_number;
-        memcpy(&(mrp.data), missed_eb, sizeof(uint16_t)*deployment_node_count);
-        sent_packet_configuration.max_tx = 2;   //increase retransmits in order to evade missing packets when CPAN is building the new schedule
-        masternet_len = minimal_routing_packet_size + sizeof(uint16_t)*deployment_node_count;
-        LOG_INFO("trying to send;%u;%u\n", node_id, own_packet_number);
-        NETSTACK_NETWORK.output(&coordinator_addr);
-      leds_off(LEDS_RED);
+        mrp.data[0] = CM_GET_ETX_METRIC;
+        masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
+
+        //callback data to be checked
+        sent_packet_configuration.command = CM_GET_ETX_METRIC;
+
+        //change link to new neighbor for polling etx-metric
+        tsch_schedule_remove_link_by_timeslot(sf[1], node_id-1);
+        tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &next_dest->addr, node_id-1, 0);
+
+        LOG_INFO("Sending POLL request to %u with size %d\n", next_dest->addr.u8[NODE_ID_INDEX], masternet_len);
+        LOG_INFO_LLADDR(&next_dest->addr);
+        NETSTACK_NETWORK.output(&next_dest->addr);
       }
+
+      if(current_state == ST_BEGIN_GATHER_METRIC || current_state == ST_SEND_METRIC)
+      {
+        //Prepare packet to send metric to requester
+        sent_packet_configuration.command = CM_ETX_METRIC;
+
+        tsch_schedule_remove_link_by_timeslot(sf[1], node_id-1);
+        tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_queue_get_time_source()->addr, node_id-1, 0);
+
+        LOG_INFO("Sending ETX-Links to %u with size %d\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], masternet_len);
+        NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
+      }
+    }
+
+    void prepare_etx_metric()
+    {
+      mrp.flow_number = node_id; 
+      mrp.packet_number = ++own_packet_number;
+      int command = CM_ETX_METRIC;
+      memcpy(&(mrp.data), &command, sizeof(uint8_t));
+      memcpy(&(mrp.data[1]), etx_links, sizeof(uint8_t)*deployment_node_count);
+      masternet_len = minimal_routing_packet_size + sizeof(uint8_t) + sizeof(uint8_t)*deployment_node_count;
+      LOG_INFO("Metric prepared with size %d\n", masternet_len);
+      handle_convergcast();
+    }
+
+    //Get the next neighbour that has this node as his time source
+    int set_next_neighbour()
+    {
+      //loop while the next dest is != null and time source = this node
+      // if(next_dest == NULL)
+      // {
+      //   LOG_INFO("SELECTED started, next_dest is null ");
+      //   next_dest = tsch_queue_first_nbr();
+      //   if(next_dest->time_source == linkaddr_node_addr.u8[NODE_ID_INDEX])
+      //   {
+      //     LOG_INFO("SELECTED neighbour %u",next_dest->addr.u8[NODE_ID_INDEX]);
+      //     return 1;
+      //   }
+      // }
+
+      do
+      {
+
+        next_dest = tsch_queue_next_nbr(next_dest);
+
+        if(next_dest == NULL)
+        {
+          return 0;
+        }
+        if(linkaddr_node_addr.u8[NODE_ID_INDEX] == 13)
+        {
+          LOG_INFO("SELECTED loop lookin at node %u with time source %u\n",next_dest->addr.u8[NODE_ID_INDEX], next_dest->time_source);
+        }
+      } while(next_dest->time_source != linkaddr_node_addr.u8[NODE_ID_INDEX]);
+
+      LOG_INFO("SELECTED neighbour from while loop %u",next_dest->addr.u8[NODE_ID_INDEX]);
+      return 1;
+    }
+
+    void send_metric()
+    {
+      // sf[0] = tsch_schedule_get_slotframe_by_handle(0);
+      // if (sf[0])
+      // {
+      //   tsch_schedule_remove_slotframe(sf[0]);
+      // }
+
+      // sf[1] = tsch_schedule_get_slotframe_by_handle(1);
+      // if (sf[1])
+      // {
+      //   tsch_schedule_remove_slotframe(sf[1]);
+      // }
+
+      // sf[0] = tsch_schedule_add_slotframe(0, 1);
+
+      // tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_NORMAL, &tsch_broadcast_address, 0, 0);
+
+      tsch_set_eb_period(CLOCK_SECOND);
+
+      int i;
+      for(i=0; i < deployment_node_count; i++)
+      {
+        //TODO:: Test the ceil function
+        if(last_received_eb[i] == 0)
+        {
+          etx_links[i] = 0;
+        }else{
+          LOG_INFO("ETX-Links looking at %i missed: %i, last: %i, first: %i,\n", i+1, missed_eb[i], last_received_eb[i], first_received_eb[i]);
+          float etx_link = 1.0 / (1.0 - ((float)missed_eb[i] / (last_received_eb[i] - first_received_eb[i])));
+          float etx_link_to_save = etx_link * 100;
+
+          char fractional_part2[10];
+          sprintf(fractional_part2, "%i", (int)(((etx_link_to_save - (int)etx_link_to_save) + 1.0) * 1000000));
+          int etx_link_int = (int)etx_link_to_save;
+          LOG_INFO("ETX-Links  %i.%s\n", (int)etx_link, &fractional_part2[1]);
+          LOG_INFO("ETX-Links int = %i\n", etx_link_int); 
+
+          LOG_INFO("ETX-Links value %u.%u \n", (unsigned short)etx_link_to_save , (unsigned short)(1000*(etx_link_to_save-((unsigned short)etx_link_to_save))));
+
+          char fractional_part[10];
+          sprintf(fractional_part, "%i", (int)(((etx_link - (int)etx_link) + 1.0) * 1000000));
+          etx_link_int = (int)etx_link;
+          LOG_INFO("ETX-Links  %i.%s\n", (int)etx_link, &fractional_part[1]);
+          LOG_INFO("ETX-Links int = %i\n", etx_link_int); 
+
+          LOG_INFO("ETX-Links value %u.%u \n", (unsigned short)etx_link , (unsigned short)(1000*(etx_link-((unsigned short)etx_link))));
+          if(etx_link == (float)etx_link_int)
+          {
+            etx_links[i] = (uint8_t)etx_link_int;
+          }else{
+            etx_links[i] = (uint8_t)etx_link_int + 1;
+          }
+        } 
+      }
+      LOG_INFO("ETX-Links - FROM 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", etx_links[0], etx_links[1], etx_links[2], etx_links[3], etx_links[4]);
+      if(tsch_is_coordinator)
+      {
+        //LOG_INFO("ETX-Links - FROM 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", etx_links[0], etx_links[1], etx_links[2], etx_links[3], etx_links[4]);
+        current_state = ST_POLL_NEIGHBOUR;
+        next_dest = tsch_queue_first_nbr();
+        handle_convergcast();
+      //TODO:: start phase to gather metric
+      }
+      // else{
+
+      //   leds_on(LEDS_RED);
+      
+      //   linkaddr_t * dest_addr = &tsch_queue_get_time_source()->addr;
+
+      //   sf[1] = tsch_schedule_get_slotframe_by_handle(1);
+      //   if (sf[1])
+      //   {
+      //     tsch_schedule_remove_slotframe(sf[1]);
+      //   }
+
+      //   sf[1] = tsch_schedule_add_slotframe(1, deployment_node_count);
+        
+      //   tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, dest_addr, node_id-1, 0);
+
+
+      //   mrp.flow_number = node_id; 
+      //   mrp.packet_number = ++own_packet_number;
+
+      //   memcpy(&(mrp.data), etx_links, sizeof(uint8_t)*deployment_node_count);
+      //   //TODO:: how many retransmitts should be done?
+      //   sent_packet_configuration.max_tx = 1;   //increase retransmits in order to evade missing packets when CPAN is building the new schedule
+      //   masternet_len = minimal_routing_packet_size + sizeof(uint8_t)*deployment_node_count;
+      //   LOG_INFO("Sending a packet to %u with size %i", dest_addr->u8[0], sizeof(uint8_t)*deployment_node_count);
+      //   NETSTACK_NETWORK.output(dest_addr);
+      //   leds_off(LEDS_RED);
+      // }
     }
   #else
     static int
@@ -370,6 +507,11 @@ master_install_schedule(void *ptr)
 #else
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     send_metric();
+    if(current_state == ST_BEGIN_GATHER_METRIC)
+    {
+      LOG_INFO("SEND packet after install schedule");
+      prepare_etx_metric();
+    }
   #else
     tsch_schedule_remove_slotframe(sf[0]);
     sf[0] = tsch_schedule_add_slotframe(0, MASTER_EBSF_PERIOD);
@@ -378,6 +520,8 @@ master_install_schedule(void *ptr)
   #endif
   //TODOLIV: log success of schedule installation -> unsuccessful means not large enough sf size
 #endif /* MASTER_SCHEDULE */
+  started = 1;
+  LOG_INFO("started\n");
   is_configured = 1;
   //if MASTER_SCHEDULE -> install schedule, else -> install ND schedule
   LOG_TRACE_RETURN("master_install_schedule \n");
@@ -394,32 +538,161 @@ void master_routing_set_input_callback(master_routing_input_callback callback)
   LOG_TRACE_RETURN("master_routing_set_input_callback \n");
 }
 /*---------------------------------------------------------------------------*/
+void master_routing_output_input_callback(mac_callback_t callback)
+{
+  LOG_TRACE("master_routing_output_input_callback \n");
+  current_output_callback = callback;
+  LOG_TRACE_RETURN("master_routing_output_input_callback \n");
+}
+/*---------------------------------------------------------------------------*/
+//Callback for sent packets over TSCH.
+void master_routing_output(void *data, int ret, int transmissions)
+{
+  LOG_INFO("master output \n");
+  LOG_INFO("MASTERROUTING ret is %u and transmission were %u\n", ret, transmissions);
+  //TODO: in case we miss some transmissions, what to do? 
+  if(ret != MAC_TX_OK)
+  {
+    return;
+  }
+
+  int command = 0;
+  memcpy(&command, data, 1);
+
+  LOG_INFO("MASTERROUTING command is %u, ret is %u and transmission were %u\n", command, ret, transmissions);
+  //In case of coordinator, we end up here after ACK from a neighbour
+  if(tsch_is_coordinator)
+  {
+    //Ignore callback from sent packets that are not poll requests
+    if(command != CM_GET_ETX_METRIC)
+    {
+      LOG_INFO("MASTERROUTING command is not CM_GET_ETX_METRIC for coordinator");
+      return;
+    }
+
+    LOG_INFO("MASTERROUTING command is CM_GET_ETX_METRIC for coordinator");
+    //In case there are still neighbours left, poll the next, otherwise finish
+    if(set_next_neighbour())
+    {
+      handle_convergcast();
+    }else
+    {
+      LOG_INFO("MASTERROUTING SENDING over for coordinator \n");
+      current_state = ST_EB;
+    }
+  }else{
+    //When we are not the coordinator and send our metric, we end up here after an ACK
+    //get the first neighbor and poll him
+    if(current_state == ST_BEGIN_GATHER_METRIC && command == CM_ETX_METRIC)
+    {
+      //Get the first neighbor that has this node as time_source
+      next_dest = tsch_queue_first_nbr();
+      while(next_dest->time_source != linkaddr_node_addr.u8[NODE_ID_INDEX])
+      {
+
+        next_dest = tsch_queue_next_nbr(next_dest);
+
+        if(next_dest == NULL)
+        {
+          LOG_INFO("MASTERROUTING no neighbour to poll from. finish here\n");
+          current_state = ST_END;
+          return;
+        }
+      }
+
+      //Start Polling with first neighbor
+      current_state = ST_POLL_NEIGHBOUR;
+      handle_convergcast();
+      return;
+    }
+
+    //Once we send a Polling request, we prepare the next neighbor as target for the next round 
+    //and wait for the respons of current request
+    if(current_state == ST_POLL_NEIGHBOUR && command == CM_GET_ETX_METRIC)
+    {
+      LOG_INFO("MASTERROUTING command is CM_GET_ETX_METRIC and state ST_POLL_NEIGHBOUR");
+      set_next_neighbour();
+    }
+
+    //We received the polled metric and forwarded to our own time souce. 
+    //now poll the next neighbour
+    if(current_state == ST_SEND_METRIC && command == CM_ETX_METRIC)
+    {
+      LOG_INFO("MASTERROUTING command is CM_ETX_METRIC and state ST_SEND_METRIC");
+      if(next_dest != NULL)
+      {
+        current_state = ST_POLL_NEIGHBOUR;
+
+        //prepare data to be sent
+        int command = CM_GET_ETX_METRIC;
+        memcpy(&(mrp.data), &command, sizeof(uint8_t));
+        masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
+
+        handle_convergcast();
+      }else{
+        LOG_INFO("MASTERROUTING SENDING over \n");
+        current_state = ST_EB;
+      }
+    }
+  }
+}
+/*---------------------------------------------------------------------------*/
 void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
   LOG_INFO("master_routing_input \n");
   //leds_on(LEDS_RED);
-  LOG_INFO("len %i and boundary %i %i\n", len, minimal_routing_packet_size, maximal_routing_packet_size);
+
   if (len >= minimal_routing_packet_size && len <= maximal_routing_packet_size)
   {
     uint8_t forward_to_upper_layer = 0;
-    memcpy(&mrp, data, len);
-    LOG_INFO("first if? \n");
+    memcpy(&mrp, data, len); 
 #ifndef MASTER_SCHEDULE
     //neighbor discovery
     //As long as no master schedule is registert, log the packets for master
-  LOG_INFO("before the if? \n");
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-    LOG_INFO("get array elements \n");
-    uint16_t buf[sizeof(uint16_t)*deployment_node_count];
-    memcpy(buf, mrp.data, sizeof(uint16_t)*deployment_node_count);
-    LOG_INFO("MissedEB - FROM %i 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", mrp.flow_number, buf[0], buf[1], buf[2], buf[3], buf[4]);
+    int command = mrp.data[0];
+    LOG_INFO("Got a packet from %u with command %u\n", src->u8[NODE_ID_INDEX], command);
+    switch (command)
+    {
+    case CM_GET_ETX_METRIC:
+      //Start the metric gathering.
+      current_state = ST_BEGIN_GATHER_METRIC;
+
+      if(started)
+      {
+        prepare_etx_metric();
+      }
+      break;
+    case CM_ETX_METRIC:
+      //Received metric from other nodes
+      if(tsch_is_coordinator)
+      {
+        char str[5*deployment_node_count];
+        int i;
+        LOG_INFO("ETX-Links - len %i\n", len-3);
+        for (i = 0; i < deployment_node_count; i++) {
+          LOG_INFO("ETX-Links - i %i and value %i\n", i, mrp.data[i+1]);
+          sprintf(&str[i*5], "%i=%i, ", i+1, mrp.data[i+1]);
+        }
+        
+        LOG_INFO("ETX-Links - FROM %i: %s\n", mrp.flow_number, str);
+        //LOG_INFO("ETX-Links - FROM %i 1: %i, 2: %i, 3: %i, 4: %i, 5: %i\n", mrp.flow_number, buf[0], buf[1], buf[2], buf[3], buf[4]);
+      }else{
+        //Response of the Polling request, forward the metric to own time source
+        current_state = ST_SEND_METRIC; 
+        mrp.data[0] = CM_ETX_METRIC;
+        masternet_len = len;
+        handle_convergcast();
+      }
+      break;
+    default:
+      break;
+    }
   #else
-    LOG_INFO("in the else\n");
     uint8_t sender = mrp.flow_number;
     LOG_INFO("rcvd;%u;%u;%u;%u;%d\n", node_id, sender, packetbuf_attr(PACKETBUF_ATTR_CHANNEL), mrp.packet_number, (int16_t)packetbuf_attr(PACKETBUF_ATTR_RSSI)); //rcvd;<to>;<from>;<channel>;<number>;<rssi>
     forward_to_upper_layer = 1;
   #endif
-    LOG_INFO("after all ifs\n");
 #else //normal operation
     uint16_t received_asn = packetbuf_attr(PACKETBUF_ATTR_RECEIVED_ASN);
 
@@ -601,6 +874,7 @@ int master_routing_send(const void *data, uint16_t datalen)
 #else
       sent_packet_configuration.max_tx = max_transmissions[sent_packet_configuration.flow_number - 1];
 #endif /* TSCH_TTL_BASED_RETRANSMISSIONS */
+
       LOG_INFO("expected max tx: %u\n", sent_packet_configuration.max_tx);
 
       masternet_len = minimal_routing_packet_size + datalen;
@@ -703,6 +977,7 @@ void init_master_routing(void)
 
     /* Register MasterNet input/config callback */
     masternet_set_input_callback(master_routing_input); //TODOLIV
+    masternet_set_output_callback(master_routing_output); 
     masternet_set_config_callback(master_routing_sent_configuration);
 
     tsch_schedule_remove_all_slotframes();
@@ -720,18 +995,15 @@ void init_master_routing(void)
       // }
       sf[0] = tsch_schedule_add_slotframe(0, 1);    //Listen on this every frame where the nodes doesnt send
       sf[1] = tsch_schedule_add_slotframe(1, NUM_COOJA_NODES); //send in this frame every "node_count"
-      tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
-      tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, node_id-1, 0);
+      tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);
+      tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, node_id-1, 0);
     #else
       sf[0] = tsch_schedule_add_slotframe(0, 1);
-      tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 0, 0);
+      tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);
     #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
-    LOG_INFO("boundary %i %i %i\n", minimal_routing_packet_size, maximal_routing_packet_size, sizeof(master_routing_packet_t));
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
     ctimer_set(&install_schedule_timer, MASTER_INIT_PERIOD, master_install_schedule, NULL);
-    started = 1;
-    LOG_INFO("started\n");
   }
 #else
   LOG_ERR("can't init master-routing: master-net not configured\n");
