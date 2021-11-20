@@ -935,9 +935,6 @@ void init_master_routing(void)
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
     //ctimer_set(&install_schedule_timer, MASTER_INIT_PERIOD, master_install_schedule, NULL);
     ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, master_install_schedule, NULL);
-    LOG_INFO("TIMETEST clocks %lu\n", (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000);
-    LOG_INFO("TIMETEST seconds %u\n", ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000);
-    LOG_INFO("TIMETEST TSCH_DEFAULT_TS_TIMESLOT_LENGTH %u deployment_node_count %u\n", TSCH_DEFAULT_TS_TIMESLOT_LENGTH, deployment_node_count);
  }
 #else
   LOG_ERR("can't init master-routing: master-net not configured\n");
