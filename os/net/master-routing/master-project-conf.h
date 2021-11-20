@@ -67,7 +67,7 @@
 #endif
 
 #ifndef TSCH_BEACON_AMOUNT
-#define TSCH_BEACON_AMOUNT 10
+#define TSCH_BEACON_AMOUNT 150
 #endif
 
 // neighbor discovery during runtime:

@@ -904,7 +904,8 @@ void init_master_routing(void)
     //E.G Node 1 of 5 will be the coordinator of the network
     tsch_set_coordinator(isCoordinator);
     //The Enhanced beacon timer
-    tsch_set_eb_period(CLOCK_SECOND / 10);
+    tsch_set_eb_period((CLOCK_SECOND * ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count)) / 1000);
+    LOG_INFO("Generate beacon every %i", ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count));
     #if TSCH_PACKET_EB_WITH_RANK
       if(isCoordinator)
         tsch_set_rank(0);
