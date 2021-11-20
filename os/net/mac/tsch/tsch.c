@@ -80,7 +80,7 @@ uint16_t counter_test = 0;
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 #if TSCH_DEBUG_PRINT
 #include <stdio.h>

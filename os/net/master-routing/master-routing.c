@@ -141,7 +141,8 @@ static mac_callback_t current_output_callback = NULL;
 
 //Max neighbors calculates virtual EB and Broadcast in. remove this two
 uint8_t etx_links[(TSCH_QUEUE_MAX_NEIGHBOR_QUEUES-2)*2];
-
+#define MAX_CHARS_PER_ETX_LINK 8
+char str[MAX_CHARS_PER_ETX_LINK*TSCH_QUEUE_MAX_NEIGHBOR_QUEUES + 1]; //'\0' at the end
 /*-------------------------- Routing configuration --------------------------*/
 
 #if MAC_CONF_WITH_TSCH
@@ -306,29 +307,18 @@ static void set_destination_link_addr(uint8_t destination_node_id)
 
     void print_metric(uint8_t *metric, uint8_t metric_owner, uint16_t len)
     {
-      LOG_INFO("ETX-Links - FROM max neighbors %i\n", len/2);
-      int max_chars_per_etx_link = 8;
-      char str[max_chars_per_etx_link*(len/2)];
       int i;
       int string_offset = 0;
       for (i = 0; i < len; i += 2) {
-        //LOG_INFO("TESTTTTTTTT start %i %i", *(metric + i), *(metric + i + 1));
         int node = *(metric + i);
         int first = *(metric + i + 1) / 10;
         int second = *(metric + i + 1) % 10;
-        //LOG_INFO("TESTTTTTTTT end");
-        if(node > 9)
-        {
-          sprintf(&str[string_offset], "%2i:%i.%i, ", node, first, second);
-          string_offset += max_chars_per_etx_link;
-        }else{
-          sprintf(&str[string_offset], "%i:%i.%i, ", node, first, second);
-          string_offset += max_chars_per_etx_link - 1;
-        }
 
-        if((i == len - 2) && (i != 0))
+        string_offset += sprintf(&str[string_offset], "%i:%i.%i", node, first, second);
+
+        if(i + 2 < len)
         {
-          str[string_offset - 2] = '\0';
+          string_offset += sprintf(&str[string_offset], ", ");
         }
       }
       
@@ -338,7 +328,7 @@ static void set_destination_link_addr(uint8_t destination_node_id)
     int calculate_etx_metric()
     {
       tsch_set_eb_period(CLOCK_SECOND);
-      LOG_INFO("Calculating queue for %d\n", TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
+
       struct tsch_neighbor* nbr = tsch_queue_first_nbr();
       int pos = 0;
       do
@@ -628,7 +618,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
       //Received metric from other nodes
       if(tsch_is_coordinator)
       {
-        print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - 3 - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
+        print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - minimal_routing_packet_size - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
       }else{
         //Response of the Polling request, forward the metric to own time source
         current_state = ST_SEND_METRIC; 
@@ -717,7 +707,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
 #ifdef MASTER_SCHEDULE
       current_callback((void *)&mrp.data, len - minimal_routing_packet_size, sender_of_flow[mrp.flow_number], receiver_of_flow[mrp.flow_number]);
 #else
-      current_callback((void *)&mrp.data, len - minimal_routing_packet_size, src->u8[NODE_ID_INDEX], dest->u8[NODE_ID_INDEX]);
+      current_callback((void *)&mrp.data[COMMAND_END], len - minimal_routing_packet_size - COMMAND_END, src->u8[NODE_ID_INDEX], dest->u8[NODE_ID_INDEX]);
 #endif /* MASTER_SCHEDULE */
     }
   }
