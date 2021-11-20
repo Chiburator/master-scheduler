@@ -139,6 +139,9 @@ static uint8_t is_configured = 0;
 static master_routing_input_callback current_callback = NULL;
 static mac_callback_t current_output_callback = NULL;
 
+//Max neighbors calculates virtual EB and Broadcast in. remove this two
+uint8_t etx_links[(TSCH_QUEUE_MAX_NEIGHBOR_QUEUES-2)*2];
+
 /*-------------------------- Routing configuration --------------------------*/
 
 #if MAC_CONF_WITH_TSCH
@@ -285,18 +288,6 @@ static void set_destination_link_addr(uint8_t destination_node_id)
       }
     }
 
-    //Called when the first poll command to get this nodes metric is received
-    void prepare_etx_metric()
-    {
-      mrp.flow_number = node_id; 
-      mrp.packet_number = ++own_packet_number;
-      int command = CM_ETX_METRIC;
-      memcpy(&(mrp.data), &command, sizeof(uint8_t));
-      memcpy(&(mrp.data[1]), etx_links, sizeof(uint8_t)*deployment_node_count);
-      masternet_len = minimal_routing_packet_size + sizeof(uint8_t) + sizeof(uint8_t)*deployment_node_count;
-      handle_convergcast();
-    }
-
     //Get the next neighbour that has this node as his time source
     int set_next_neighbour()
     {
@@ -313,49 +304,82 @@ static void set_destination_link_addr(uint8_t destination_node_id)
       return 1;
     }
 
-    void print_metric(uint8_t *metric, uint8_t metric_owner)
+    void print_metric(uint8_t *metric, uint8_t metric_owner, uint16_t len)
     {
-      LOG_INFO("ETX-Links - FROM node count %i\n", deployment_node_count);
-      int chars_per_etx_entry = 7;
-      char str[chars_per_etx_entry*deployment_node_count];
+      LOG_INFO("ETX-Links - FROM max neighbors %i\n", len/2);
+      int max_chars_per_etx_link = 8;
+      char str[max_chars_per_etx_link*(len/2)];
       int i;
-      for (i = 0; i < deployment_node_count; i++) {
-        int first = *(metric + i) / 10;
-        int second = *(metric + i) % 10;
-        //LOG_INFO("ETX-Links - i %i and value %i\n", i, *(metric + i));
-        if(i == deployment_node_count - 1)
+      int string_offset = 0;
+      for (i = 0; i < len; i += 2) {
+        //LOG_INFO("TESTTTTTTTT start %i %i", *(metric + i), *(metric + i + 1));
+        int node = *(metric + i);
+        int first = *(metric + i + 1) / 10;
+        int second = *(metric + i + 1) % 10;
+        //LOG_INFO("TESTTTTTTTT end");
+        if(node > 9)
         {
-          sprintf(&str[i*chars_per_etx_entry], "%i:%i.%i", i + 1, first, second);
+          sprintf(&str[string_offset], "%2i:%i.%i, ", node, first, second);
+          string_offset += max_chars_per_etx_link;
         }else{
-          sprintf(&str[i*chars_per_etx_entry], "%i:%i.%i, ", i + 1, first, second);
+          sprintf(&str[string_offset], "%i:%i.%i, ", node, first, second);
+          string_offset += max_chars_per_etx_link - 1;
+        }
+
+        if((i == len - 2) && (i != 0))
+        {
+          str[string_offset - 2] = '\0';
         }
       }
       
       LOG_INFO("ETX-Links - FROM %i; %s\n", metric_owner, str);
     }
 
-    void calculate_etx_metric()
+    int calculate_etx_metric()
     {
       tsch_set_eb_period(CLOCK_SECOND);
-
-      int i;
-      for(i=0; i < deployment_node_count; i++)
+      LOG_INFO("Calculating queue for %d\n", TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
+      struct tsch_neighbor* nbr = tsch_queue_first_nbr();
+      int pos = 0;
+      do
       {
-        if(last_received_eb[i] == 0)
-        {
-          etx_links[i] = 0;
-        }else{
-          float etx_link = 1.0 / (1.0 - ((float)missed_eb[i] / (last_received_eb[i] - first_received_eb[i])));
-          int etx_link_int = (int)(etx_link * 100);
+        //Skip virtaul eb and broadcast neihbor
+        if(linkaddr_cmp(&tsch_eb_address, &nbr->addr) || linkaddr_cmp(&tsch_broadcast_address, &nbr->addr)){
+          nbr = tsch_queue_next_nbr(nbr);
+          continue;
+        }
 
-          if(etx_link_int % 10 > 0)
-          {
-            etx_links[i] = (uint8_t)((etx_link_int / 10) + 1);
-          }else{
-            etx_links[i] = (uint8_t)(etx_link_int / 10);
-          }
-        } 
-      }
+        //This could fail if last_eb = first_eb, but this is unlikely if the time set for the eb phase is not extremly short
+        float etx_link = 1.0 / (1.0 - ((float)nbr->missed_ebs / (nbr->last_eb - nbr->first_eb)));
+        int etx_link_int = (int)(etx_link * 100);
+
+        etx_links[pos] = (uint8_t)nbr->addr.u8[NODE_ID_INDEX];
+        if(etx_link_int % 10 > 0)
+        {
+          etx_links[pos + 1] = (uint8_t)((etx_link_int / 10) + 1);
+        }else{
+          etx_links[pos + 1] = (uint8_t)(etx_link_int / 10);
+        }
+        //LOG_INFO("ETX-Links nbr %u data %u, %u, %u\n", nbr->addr.u8[NODE_ID_INDEX], nbr->missed_ebs, nbr->first_eb, nbr->last_eb);
+        //LOG_INFO("ETX-Links calculate for %u, %u\n", etx_links[pos], etx_links[pos+1]);
+        pos += 2;
+        nbr = tsch_queue_next_nbr(nbr);
+      }while (nbr != NULL);
+
+      return pos;
+    }
+    
+    //Called when the first poll command to get this nodes metric is received
+    void prepare_etx_metric()
+    {
+      mrp.flow_number = node_id; 
+      mrp.packet_number = ++own_packet_number;
+      int command = CM_ETX_METRIC;
+      int len = calculate_etx_metric();
+      memcpy(&(mrp.data), &command, sizeof(uint8_t));
+      memcpy(&(mrp.data[1]), etx_links, len);
+      masternet_len = minimal_routing_packet_size + sizeof(uint8_t) + len;
+      handle_convergcast();
     }
   #else
     static int
@@ -444,11 +468,9 @@ master_install_schedule(void *ptr)
 #include MASTER_SCHEDULE
 #else
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-    calculate_etx_metric();
-
     if(tsch_is_coordinator)
     {
-      print_metric(etx_links, 1);
+      print_metric(etx_links, 1, calculate_etx_metric());
       current_state = ST_POLL_NEIGHBOUR;
       next_dest = tsch_queue_first_nbr();
       handle_convergcast();
@@ -606,7 +628,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
       //Received metric from other nodes
       if(tsch_is_coordinator)
       {
-        print_metric(&mrp.data[COMMAND_END], mrp.flow_number);
+        print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - 3 - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
       }else{
         //Response of the Polling request, forward the metric to own time source
         current_state = ST_SEND_METRIC; 

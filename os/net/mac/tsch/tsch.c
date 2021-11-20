@@ -181,12 +181,6 @@ static uint8_t tsch_packet_seqno;
 static clock_time_t tsch_current_eb_period;
 /* Current period for keepalive output */
 static clock_time_t tsch_current_ka_timeout;
-uint16_t last_received_eb[NUM_COOJA_NODES]; 
-uint16_t missed_eb[NUM_COOJA_NODES]; 
-uint16_t first_received_eb[NUM_COOJA_NODES]; 
-uint8_t etx_links[NUM_COOJA_NODES]; 
-//uint8_t num_eb_packets = 0;
-//uint8_t num_packets = 0;
 
 /* timer for sending keepalive messages */
 static struct ctimer keepalive_timer;
@@ -536,29 +530,40 @@ eb_input(struct input_packet *current_input)
 
 extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src, const uint16_t *seq_nr)
 {
-  LOG_TRACE("neighbor_discovery_input \n");
-  short node=0;
-  int i;
+  // LOG_TRACE("neighbor_discovery_input \n");
+  // uint8_t node = src->u8[NODE_ID_INDEX];
+  // int i;
 
-  for(i = 0; i < LINKADDR_SIZE; i++)
-  {
-      node += src->u8[i];
-  }
+  // //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
+  // //Nodes start at 1 and array at 0 -> node-1
+  // if(last_received_eb[node-1] == 0)
+  // {
+  //   first_received_eb[node-1] = *data;
+  //   last_received_eb[node-1] = *data;
+  //   return;
+  // }
+
+  // missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
+  // last_received_eb[node-1] = *data;
+
+  // LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], node, *data);
+  // LOG_TRACE_RETURN("neighbor_discovery_input \n");
+  //TODO:: logging so bauen das ich checken kann ob es stimmt, dass eine hohe verlustrate vorliegt.
+  struct tsch_neighbor* nbr = tsch_queue_get_nbr(src);
+
   //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
   //Nodes start at 1 and array at 0 -> node-1
-  if(last_received_eb[node-1] == 0)
+  if(nbr->first_eb == 0)
   {
-    first_received_eb[node-1] = *data;
-    last_received_eb[node-1] = *data;
+    nbr->first_eb = *data;
+    nbr->last_eb = *data;
     return;
   }
 
-  missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
-  last_received_eb[node-1] = *data;
+  nbr->missed_ebs += (*data - nbr->last_eb) - 1;
+  nbr->last_eb = *data;
 
-  LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], node, *data);
-  LOG_TRACE_RETURN("neighbor_discovery_input \n");
-  //TODO:: logging so bauen das ich checken kann ob es stimmt, dass eine hohe verlustrate vorliegt.
+  LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], *data);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1185,16 +1190,6 @@ tsch_init(void)
   {
     LOG_ERR("! TSCH_HOPPING_SEQUENCE_MAX_LEN < sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE). Abort init.\n");
   }
-
-  //TODO:: maybe move this to own function
-  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-    int i;
-    for(i = 0; i < NUM_COOJA_NODES; i++)
-    {
-      last_received_eb[i] = 0;
-      missed_eb[i] = 0;
-    }
-  #endif
 
   /* Init the queuebuf and TSCH sub-modules */
   queuebuf_init();

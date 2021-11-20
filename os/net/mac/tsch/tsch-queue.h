@@ -152,6 +152,9 @@ struct tsch_neighbor {
 #if TSCH_PACKET_EB_WITH_RANK
   uint8_t rank; /* is this neighbor a time source? */
   uint8_t time_source; /* is this neighbor a time source? */
+  uint16_t first_eb;
+  uint16_t last_eb;
+  uint16_t missed_ebs;
 #endif
   uint8_t backoff_exponent; /* CSMA backoff exponent */
   uint8_t backoff_window; /* CSMA backoff window (number of slots to skip) */

@@ -201,10 +201,6 @@ extern int tsch_is_pan_secured;
 /* The TSCH MAC driver */
 extern const struct mac_driver tschmac_driver;
 
-extern uint16_t last_received_eb[NUM_COOJA_NODES]; 
-extern uint16_t missed_eb[NUM_COOJA_NODES]; 
-extern uint16_t first_received_eb[NUM_COOJA_NODES]; 
-extern uint8_t etx_links[NUM_COOJA_NODES]; 
 //extern uint8_t num_eb_packets;
 //extern uint8_t num_packets;
 

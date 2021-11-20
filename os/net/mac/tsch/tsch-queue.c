@@ -79,7 +79,7 @@ extern uint8_t perform_retransmission(struct tsch_link *link);
 
 /* We have as many packets are there are queuebuf in the system */
 MEMB(packet_memb, struct tsch_packet, QUEUEBUF_NUM);
-MEMB(neighbor_memb, struct tsch_neighbor, 18);//TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
+MEMB(neighbor_memb, struct tsch_neighbor, TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
 LIST(neighbor_list);
 
 /* Broadcast and EB virtual neighbors */
