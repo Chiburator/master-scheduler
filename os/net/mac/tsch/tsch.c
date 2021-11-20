@@ -512,16 +512,16 @@ eb_input(struct input_packet *current_input)
         tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
         tsch_queue_update_time_source_rank(eb_ies.ie_rank);
         tsch_rank = eb_ies.ie_rank + 1;
-        LOG_INFO("Got rank %u from new src %u and my rank was %u \n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank);
+        // LOG_INFO("Got rank %u from new src %u and my rank was %u \n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank);
       }
       else{
         
         struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
         tsch_queue_update_neighbour_rank_and_time_source(&n->addr, eb_ies.ie_rank, eb_ies.ie_time_source);
-        LOG_INFO("Got neighbour");
-        LOG_INFO_LLADDR(&n->addr);
-        LOG_INFO("\n");
-        LOG_INFO("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
+        // LOG_INFO("Got neighbour");
+        // LOG_INFO_LLADDR(&n->addr);
+        // LOG_INFO("\n");
+        // LOG_INFO("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
       }
     #endif
     }

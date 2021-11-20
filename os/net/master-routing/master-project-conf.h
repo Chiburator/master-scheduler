@@ -63,7 +63,11 @@
 #endif
 
 #ifndef NUM_COOJA_NODES
-#define NUM_COOJA_NODES 5
+#define NUM_COOJA_NODES 20
+#endif
+
+#ifndef TSCH_BEACON_AMOUNT
+#define TSCH_BEACON_AMOUNT 10
 #endif
 
 // neighbor discovery during runtime:
