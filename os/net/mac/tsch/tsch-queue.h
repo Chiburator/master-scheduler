@@ -155,6 +155,7 @@ struct tsch_neighbor {
   uint16_t first_eb;
   uint16_t last_eb;
   uint16_t missed_ebs;
+  uint8_t etx_link;
 #endif
   uint8_t backoff_exponent; /* CSMA backoff exponent */
   uint8_t backoff_window; /* CSMA backoff window (number of slots to skip) */

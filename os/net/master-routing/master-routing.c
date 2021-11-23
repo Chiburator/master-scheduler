@@ -255,7 +255,12 @@ static void set_destination_link_addr(uint8_t destination_node_id)
     {
       if(current_state == ST_POLL_NEIGHBOUR)
       {      
-        sent_packet_configuration.max_tx = etx_links[next_dest->addr.u8[NODE_ID_INDEX] - 1] / 10; 
+        if(next_dest->etx_link % 10 > 0)
+        {
+          sent_packet_configuration.max_tx = (next_dest->etx_link / 10) + 1; 
+        }else{
+          sent_packet_configuration.max_tx = next_dest->etx_link / 10; 
+        }        
 
         //Prepare packet for get metrix command
         mrp.flow_number = node_id; 
@@ -277,7 +282,13 @@ static void set_destination_link_addr(uint8_t destination_node_id)
 
       if(current_state == ST_BEGIN_GATHER_METRIC || current_state == ST_SEND_METRIC)
       {
-        sent_packet_configuration.max_tx = etx_links[tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX] - 1] / 10; 
+        if(tsch_queue_get_time_source()->etx_link % 10 > 0)
+        {
+          sent_packet_configuration.max_tx = (tsch_queue_get_time_source()->etx_link / 10) + 1; 
+        }else{
+          sent_packet_configuration.max_tx = tsch_queue_get_time_source()->etx_link / 10; 
+        }       
+
         //Prepare packet to send metric to requester
         sent_packet_configuration.command = CM_ETX_METRIC;
 
@@ -287,6 +298,7 @@ static void set_destination_link_addr(uint8_t destination_node_id)
         LOG_INFO("Sending ETX-Links to %u with size %d\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], masternet_len);
         NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
       }
+
     }
 
     //Get the next neighbour that has this node as his time source
@@ -350,6 +362,7 @@ static void set_destination_link_addr(uint8_t destination_node_id)
         }else{
           etx_links[pos + 1] = (uint8_t)(etx_link_int / 10);
         }
+        nbr->etx_link = etx_links[pos + 1];
         //LOG_INFO("ETX-Links nbr %u data %u, %u, %u\n", nbr->addr.u8[NODE_ID_INDEX], nbr->missed_ebs, nbr->first_eb, nbr->last_eb);
         //LOG_INFO("ETX-Links calculate for %u, %u\n", etx_links[pos], etx_links[pos+1]);
         pos += 2;
