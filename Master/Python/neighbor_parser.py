@@ -33,6 +33,7 @@ class Parser(object):
             self.parse_graphs[-1][sender][sender] = []
         self.parse_graphs[-1][sender][sender].append(number)
 
+  #run through the log and only stop at lines containing information for the graph
   def match_neighbor_data(self, line):
     match = re_search(r'rcvd;(\d+);(\d+);(\d+);(\d+);(-?\d+)', line)                      # rcvd;<node_id>;<sender>;<channel>;<number>;<rssi>
     if match:
@@ -55,6 +56,7 @@ class Parser(object):
           self.add_to_parse_graph(packet_number, sender)
 
 
+  #1. first call parse file
   def parse_file(self, filepath):
     print(filepath)
     with open(filepath, encoding="utf8", errors='ignore') as f:
@@ -77,6 +79,7 @@ class Parser(object):
       for parse_graph in self.parse_graphs:
         received_packets_count.append({})
 
+        #unpack
         if sender in [*parse_graph]:
           highest_received_number.append(0)
           for receiver in [*parse_graph[sender]]:
