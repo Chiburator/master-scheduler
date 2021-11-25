@@ -456,6 +456,37 @@ add_links(const scheduled_link_t *links, uint8_t number_links, const uint8_t *ch
     tsch_schedule_add_link(sf, links[link_idx].send_receive, LINK_TYPE_NORMAL, &destination, links[link_idx].timeslot, links[link_idx].channel_offset);
   }
   tsch_schedule_print();
+  //Space 4*SCHEDULE_LINKS+sizeof(own_transmission_flow)+sozeof(is_sender)+sizeof(own_receiver) + sizeof(node_id) = who is this shedule for
+  //remove cha_idx and cha_idx_to since we can set the destination just every time?
+  // if (node_id == 2){
+  // own_transmission_flow = 1; recognize own flow
+  // is_sender = 1;  //called by application to know if we send data
+  // own_receiver = 3; //also called by application to know where data to send
+  // const scheduled_link_t add_link[] = {
+  //     SF, (Send = 1, Receive = 2), timeslot, offset
+  //   {  1,  1,  0,  0 },
+  //   {  1,  1,  1,  0 },
+  //   {  1,  1,  2,  0 },
+  //   {  1,  1,  3,  0 },
+  //   {  2,  2,  6,  0 },
+  //   {  2,  2,  7,  0 },
+  //   {  2,  2,  8,  0 },
+  //   {  2,  2,  9,  0 },
+  //   {  2,  2, 10,  0 },
+  //   {  2,  2, 11,  0 },
+  // };
+  // hash_map_insert(&forward_to, 1, 1); //???
+  // const uint8_t cha_idx[] = {0, };  //used to know when to change to a new destination
+  // const uint8_t cha_idx_to[] = {1, }; //timeslot when to choose next destination
+  // add_links(add_link, 10, cha_idx, cha_idx_to, 1);
+  // max_transmissions[0] = 4;
+  // #if !TSCH_TTL_BASED_RETRANSMISSIONS
+  //   sending_slots[0] = 0;
+  //   sending_slots[1] = 1;
+  //   sending_slots[2] = 2;
+  //   sending_slots[3] = 3;
+  //   num_sending_slots = 4;
+  // #endif /* !TSCH_TTL_BASED_RETRANSMISSIONS */
   LOG_INFO("SCHEDULE INSTALLED!!\n");
   LOG_TRACE_RETURN("add_links \n");
 }

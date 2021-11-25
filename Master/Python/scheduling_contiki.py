@@ -213,6 +213,7 @@ class Contiki_schedule(object):
       forward_to = []
       participating_flows_as_sender = []
 
+      #Links are calculated here.
       for link_index, link in enumerate(links):
         if link.neighbor != last_neighbor:
           change_neighbor_on_link_index.append( (link_index, link.neighbor) )
