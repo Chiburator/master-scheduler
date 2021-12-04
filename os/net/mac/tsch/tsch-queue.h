@@ -149,7 +149,7 @@ struct tsch_neighbor {
   linkaddr_t addr; /* MAC address of the neighbor */
   uint8_t is_broadcast; /* is this neighbor a virtual neighbor used for broadcast (of data packets or EBs) */
   uint8_t is_time_source; /* is this neighbor a time source? */
-#if TSCH_PACKET_EB_WITH_RANK
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   uint8_t rank; /* is this neighbor a time source? */
   uint8_t time_source; /* is this neighbor a time source? */
   uint16_t first_eb;
@@ -230,7 +230,7 @@ void tsch_queue_update_all_backoff_windows(const linkaddr_t *dest_addr);
 /* Initialize TSCH queue module */
 void tsch_queue_init(void);
 
-#if TSCH_PACKET_EB_WITH_RANK
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 void tsch_queue_update_time_source_rank(const uint8_t time_source_rank);
 void tsch_queue_update_neighbour_rank_and_time_source(const linkaddr_t *neighbour_addr, const uint8_t time_source_rank, const uint8_t time_source);
 #endif

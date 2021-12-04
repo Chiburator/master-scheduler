@@ -77,11 +77,9 @@ enum ieee802154e_mlme_short_subie_id {
   MLME_SHORT_IE_TSCH_MAC_METRICS_2,
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   MLME_SHORT_IE_NEIGHBOR_DISCOVERY,
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
-#if TSCH_PACKET_EB_WITH_RANK
   MLME_SHORT_IE_RANK,
   MLME_SHORT_IE_TIME_SOURCE,
-#endif /* TSCH_PACKET_EB_WITH_RANK */
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 };
 
 /* c.f. IEEE 802.15.4e Table 4e */
@@ -362,9 +360,7 @@ frame80215e_create_ie_tsch_neighbor_discovery(uint8_t *buf, int len,
   create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_NEIGHBOR_DISCOVERY, ie_len);
   return 2 + ie_len;
 }
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
-#if TSCH_PACKET_EB_WITH_RANK
 /* MLME sub-IE. Neighbor discovery. Used in EBs: sequence number */
 int
 frame80215e_create_ie_tsch_rank(uint8_t *buf, int len,
@@ -391,7 +387,7 @@ frame80215e_create_ie_time_source(uint8_t *buf, int len,
   create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_TIME_SOURCE, ie_len);
   return 2 + ie_len;
 }
-#endif /* TSCH_PACKET_EB_WITH_RANK */
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 /* Parse a header IE */
 static int
@@ -487,7 +483,6 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
         return len;
       }
       break;
-
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     case MLME_SHORT_IE_NEIGHBOR_DISCOVERY:
       if (len == 2){
@@ -497,9 +492,6 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
         return len;
       }
       break;
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
-
-#if TSCH_PACKET_EB_WITH_RANK
     case MLME_SHORT_IE_RANK:
       if (len == 1){
         if (ies != NULL){
@@ -516,7 +508,7 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
         return len;
       }
       break;
-#endif /* TSCH_PACKET_EB_WITH_RANK */
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   }
   return -1;
 }

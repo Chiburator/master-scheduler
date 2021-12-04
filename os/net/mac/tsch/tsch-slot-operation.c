@@ -1299,7 +1299,6 @@ tsch_slot_operation_start(void)
     /* Time to next wake up */
     time_to_next_active_slot = timeslot_diff * tsch_timing[tsch_ts_timeslot_length];
     /* Update current slot start */
-    LOG_INFO("current timeslot = %i \n", current_link->timeslot);
     prev_slot_start = current_slot_start;
     current_slot_start += time_to_next_active_slot;
   } while(!tsch_schedule_slot_operation(&slot_operation_timer, prev_slot_start, time_to_next_active_slot, "assoc"));

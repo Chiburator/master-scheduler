@@ -279,13 +279,6 @@
 #define TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY 1
 #endif
 
-/* Beacon configuration for rank calculation */
-#ifdef TSCH_CONF_PACKET_EB_WITH_RANK
-#define TSCH_PACKET_EB_WITH_RANK TSCH_CONF_PACKET_EB_WITH_RANK
-#else
-#define TSCH_PACKET_EB_WITH_RANK 1
-#endif
-
 /* DEBUG output without use of logging module TODOLIV: remove in publication version */
 #ifdef TSCH_CONF_DEBUG_PRINT
 #define TSCH_DEBUG_PRINT TSCH_CONF_DEBUG_PRINT

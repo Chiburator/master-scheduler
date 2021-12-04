@@ -338,7 +338,7 @@ keepalive_packet_sent(void *ptr, int status, int transmissions)
       /* We simply pick the last neighbor we receiver sync information from */
       tsch_queue_update_time_source(&last_eb_nbr_addr);
 
-    #if TSCH_PACKET_EB_WITH_RANK
+    #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
       struct tsch_neighbor * time_source = tsch_queue_get_time_source();
       tsch_rank = time_source->rank + 1;
     #endif
@@ -500,22 +500,22 @@ eb_input(struct input_packet *current_input)
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
       }
     }else{
-    #if TSCH_PACKET_EB_WITH_RANK
+    #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
       if(eb_ies.ie_rank + 1 < tsch_rank)
       {
         tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
         tsch_queue_update_time_source_rank(eb_ies.ie_rank);
         tsch_rank = eb_ies.ie_rank + 1;
-        // LOG_INFO("Got rank %u from new src %u and my rank was %u \n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank);
+        LOG_INFO("Got rank %u from new src %u and my rank was %u \n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank);
       }
       else{
         
         struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
         tsch_queue_update_neighbour_rank_and_time_source(&n->addr, eb_ies.ie_rank, eb_ies.ie_time_source);
-        // LOG_INFO("Got neighbour");
-        // LOG_INFO_LLADDR(&n->addr);
-        // LOG_INFO("\n");
-        // LOG_INFO("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
+        LOG_INFO("Got neighbour");
+       LOG_INFO_LLADDR(&n->addr);
+       LOG_INFO("\n");
+       LOG_INFO("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
       }
     #endif
     }
@@ -849,7 +849,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
     {
       tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
 
-    #if TSCH_PACKET_EB_WITH_RANK
+    #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
       tsch_queue_update_time_source_rank(ies.ie_rank);
       tsch_rank = ies.ie_rank + 1;
       LOG_INFO("Got rank %u from src and set my rank to %u\n", ies.ie_rank, tsch_rank);

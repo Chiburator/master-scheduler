@@ -57,7 +57,7 @@
 
 uint8_t *masternet_buf;
 uint16_t masternet_len;
-void *data;
+uint8_t command = 0;
 static masternet_input_callback current_input_callback = NULL;
 static mac_callback_t current_output_callback = NULL;
 static masternet_config_callback config_callback = NULL;
@@ -114,7 +114,7 @@ output(const linkaddr_t *dest)
   LOG_TRACE("output \n");
   int framer_hdrlen;
   int max_payload;
-  
+  command = 0;
 
   leds_on(LEDS_YELLOW);
 
@@ -123,7 +123,6 @@ output(const linkaddr_t *dest)
     
   if(config_callback != NULL) {
     master_packetbuf_config_t packet_configuration = config_callback();
-
     //set max_transmissions
     packetbuf_set_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS, packet_configuration.max_tx);
 
@@ -138,9 +137,9 @@ output(const linkaddr_t *dest)
       packetbuf_set_attr(PACKETBUF_ATTR_EARLIEST_TX_SLOT, packet_configuration.earliest_tx_slot);
 #   endif /* TSCH_TTL_BASED_RETRANSMISSIONS */
 
-  #if TSCH_PACKET_EB_WITH_RANK
+  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     //The command will be transformed to a uint8_t
-    memcpy(data, &packet_configuration.command, 1);
+    command = packet_configuration.command;
   #endif
   }
 
@@ -164,7 +163,7 @@ output(const linkaddr_t *dest)
     //LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
-    NETSTACK_MAC.send(current_output_callback, data);
+    NETSTACK_MAC.send(current_output_callback, (void *)&command);
     LOG_TRACE_RETURN("output \n");
     return 1;
   } else {

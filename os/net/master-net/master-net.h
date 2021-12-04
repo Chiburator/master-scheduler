@@ -62,7 +62,7 @@ typedef struct master_packetbuf_config_t {
   uint16_t flow_number;
 # endif /* TSCH_FLOW_BASED_QUEUES */
   uint16_t max_tx;
-#if TSCH_PACKET_EB_WITH_RANK
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   //The command will be transformed to a uint8_t
   uint8_t command;
 #endif
@@ -82,7 +82,6 @@ typedef struct master_packetbuf_config_t {
 */
 extern uint8_t *masternet_buf;
 extern uint16_t masternet_len;
-
 /**
  * Function prototype for MasterNet input callback
 */

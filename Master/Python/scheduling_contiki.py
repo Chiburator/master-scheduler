@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 import copy
 import dijkstra
+from ctypes import *
 from scheduling import Schedule
 from scheduling_configuration import Scheduling_strategies
 from cell import Cell
@@ -216,7 +217,7 @@ class Contiki_schedule(object):
       #Links are calculated here.
       for link_index, link in enumerate(links):
         if link.neighbor != last_neighbor:
-          change_neighbor_on_link_index.append( (link_index, link.neighbor) )
+          change_neighbor_on_link_index.append( (link_index, link.neighbor) )# set the list for ch_idx and cha_idx_to
           last_neighbor = link.neighbor
 
         output_file.write( str_link.format(str(link.flow_number).rjust(2), str(link.link_option).rjust(2), str(link.timeslot).rjust(2), str(link.channel).rjust(2)) )
@@ -226,11 +227,12 @@ class Contiki_schedule(object):
           if link.flow_number not in participating_flows_as_sender:
             participating_flows_as_sender.append(link.flow_number)
 
+      #End of Link Calculation
       output_file.write( str_end_links )
 
       forward_to = list(dict.fromkeys(forward_to))
       for flow_number, neighbor in forward_to:
-        output_file.write( str_forward_to.format(flow_number, neighbor) )
+        output_file.write( str_forward_to.format(flow_number, neighbor) ) #add key:value pairs where key = flow and value = neighbor to forward
 
       str_change_indices = ''
       str_change_indices_to = ''
@@ -238,7 +240,7 @@ class Contiki_schedule(object):
         str_change_indices += str(link_index) + ', '
         str_change_indices_to += str(neighbor) + ', '
       output_file.write( str_change_on_index.format(str_change_indices) )
-      output_file.write( str_change_on_index_to.format(str_change_indices_to) )
+      output_file.write( str_change_on_index_to.format(str_change_indices_to) ) # use the list for ch_idx and cha_idx_to
 
       output_file.write( str_links_call.format(len(links), len(change_neighbor_on_link_index)) )
 
@@ -248,7 +250,7 @@ class Contiki_schedule(object):
       for flow_number in participating_flows_as_sender:
         flow = self.schedule.get_flow_from_id(flow_number)
         if node_id in flow.max_transmissions:
-          output_file.write( str_max_transmissions.format(flow_number - 1, flow.max_transmissions[node_id]) )
+          output_file.write( str_max_transmissions.format(flow_number - 1, flow.max_transmissions[node_id]) ) # check if max_transmission depends on etx_link
 
       if sending_flow_of_node:
         output_file.write( str_not_ttl_if )
@@ -274,3 +276,155 @@ class Contiki_schedule(object):
     output_file.close()
 
     print("TSCH_SCHEDULE_CONF_MAX_LINKS {}".format(max_number_links_per_node+2))
+
+  def generate_for_enhanced_beacon(self, output_file_path, minimal_schedule_length=0, with_timesource=False):
+
+    # prepared strings
+    str_cpan_node_beginning          = 'if (node_id == {}){{\n'
+    str_current_node_id_init         = '  int schedule_index = 0;\n'
+    str_schedule_length              = '  schedule_length = {};\n'
+
+    str_ttl_if                        = '#if TSCH_TTL_BASED_RETRANSMISSIONS\n'
+    str_ttl_endif                     = '#endif /* TSCH_TTL_BASED_RETRANSMISSIONS */\n'
+    str_not_ttl_if                    = '  #if !TSCH_TTL_BASED_RETRANSMISSIONS\n'
+    str_not_ttl_endif                 = '  #endif /* !TSCH_TTL_BASED_RETRANSMISSIONS */\n'
+
+    str_first_tx_slot_of_sf           = '  first_tx_slot_in_flow[{}] = {};\n'
+    str_last_tx_slot_of_sf            = '  last_tx_slot_in_flow[{}] = {};\n'
+
+    str_flow_sender                   = '  sender_of_flow[{}] = {};\n'
+    str_flow_receiver                 = '  receiver_of_flow[{}] = {};\n'
+
+    str_beacon_slots                  = '  beacon_slot = {};\n'
+
+    str_current_node_id               = '  schedule_index = {};\n'
+
+    str_own_tx_flow                   = '  schedules[schedule_index].own_transmission_flow = {};\n'
+    str_own_receiver                  = '  schedules[schedule_index].is_sender = 1;\n' + \
+                                        '  schedules[schedule_index].own_receiver = {};\n'
+
+    str_link_len                      = '  schedules[schedule_index].links_len = {};\n'
+    str_link                          = '  schedules[schedule_index].links[{}] = (scheduled_link_t){{ .slotframe_handle={}, .send_receive={}, .timeslot={}, .channel_offset={} }};\n' # slotframe/flow_number, link_option, timeslot, channel offset
+
+    str_flow_forward_to_len           = '  schedules[schedule_index].flow_forwards_len = {};\n'
+    str_flow_forward_to               = '  schedules[schedule_index].flow_forwards[{pos}] = {val};\n'  # received from -> forward to
+
+    str_forward_to_len                = '  schedules[schedule_index].forward_to_len = {};\n'
+    str_forward_to                    = '  schedules[schedule_index].cha_idx_to_dest[{pos}] = {val};\n'  # received from -> forward to
+
+    str_max_transmissions_len         = '  schedules[schedule_index].max_transmissions_len = {};\n'
+    str_max_transmissions             = '  schedules[schedule_index].max_transmission[{pos}] = {val};\n'  # received from -> forward to
+
+    str_sending_slots                 = '    sending_slots[{}] = {};\n'                      # index, slotnumber
+    str_num_sending_slots             = '    num_sending_slots = {};\n'                      # number of indices above
+
+    str_cpan_node_end                 = '}\n'
+
+    self.node_schedule = self.schedule.get_node_schedule(*self.node_ids)
+
+    if with_timesource:
+      self.get_timesource_for_nodes()
+
+    output_file = open(output_file_path, 'w')
+
+    output_file.write(str_cpan_node_beginning.format(self.network_time_source))
+    output_file.write(str_current_node_id_init)
+
+    slotframe_length = len(self.schedule.schedule[0])
+
+    if slotframe_length < minimal_schedule_length:
+      slotframe_length = minimal_schedule_length
+    if slotframe_length % 2 == 0: # if even
+      slotframe_length += 1
+
+    output_file.write( str_schedule_length.format(slotframe_length) )
+
+    for flow in self.schedule.flows:
+      output_file.write( str_flow_sender.format(flow.flow_number, flow.source) )
+      output_file.write( str_flow_receiver.format(flow.flow_number, flow.destination) )
+
+
+    output_file.write(str_beacon_slots.format(slotframe_length - 1))
+    output_file.write( str_ttl_if )
+    for flow in self.schedule.flows:
+      output_file.write( str_first_tx_slot_of_sf.format(flow.flow_number-1, flow.cells[0].timeslot) )
+      output_file.write( str_last_tx_slot_of_sf.format(flow.flow_number-1, flow.cells[-1].timeslot) )
+    output_file.write( str_ttl_endif )
+
+    max_number_links_per_node = 0
+    for node_id in [*self.node_schedule]:
+
+      hi = f"hehe{node_id:>10}"
+      output_file.write(str_current_node_id.format(node_id-1));
+
+      sending_flow_of_node = self.get_flow_from_sender(node_id)
+      if sending_flow_of_node:
+        output_file.write( str_own_tx_flow.format(sending_flow_of_node.flow_number) )
+        output_file.write( str_own_receiver.format(sending_flow_of_node.destination) )
+
+      links = self.sorted_list_of_links(node_id)
+      if len(links) > max_number_links_per_node:
+        max_number_links_per_node = len(links)
+
+      output_file.write( str_link_len.format(len(links)) )
+
+      last_neighbor = None
+      change_neighbor_on_link_index = []
+      forward_to = []
+      participating_flows_as_sender = []
+
+      #Links are calculated here. (cha_idx too)
+      for link_index, link in enumerate(links):
+        if link.neighbor != last_neighbor:
+          change_neighbor_on_link_index.append( (link_index, link.neighbor) )# set the list for ch_idx and cha_idx_to
+          last_neighbor = link.neighbor
+
+        output_file.write(str_link.format(link_index, str(link.flow_number).rjust(2), str(link.link_option).rjust(2),
+                                          str(link.timeslot).rjust(2), str(link.channel).rjust(2)))
+
+        if link.link_option != Link_options.receive.value: # not a receive-only link
+          forward_to.append( (link.flow_number, link.neighbor) )
+          if link.flow_number not in participating_flows_as_sender:
+            participating_flows_as_sender.append(link.flow_number)
+
+      forward_to = list(dict.fromkeys(forward_to))
+      output_file.write(str_flow_forward_to_len.format(len(forward_to)))
+      for pos in range(0, len(forward_to)):
+        output_file.write(str_flow_forward_to.format(pos=pos*2, val=forward_to[pos][0]))  # add key:value pairs where key = flow and value = neighbor to forward
+        output_file.write(str_flow_forward_to.format(pos=pos*2 + 1, val=forward_to[pos][1]))
+
+      output_file.write(str_forward_to_len.format(len(change_neighbor_on_link_index)))
+      for pos in range(0, len(change_neighbor_on_link_index)):
+        output_file.write(str_forward_to.format(pos=pos*2, val=change_neighbor_on_link_index[pos][0]))
+        output_file.write(str_forward_to.format(pos=pos*2 + 1, val=change_neighbor_on_link_index[pos][1]))
+
+      counter = 0;
+      for flow_number in participating_flows_as_sender:
+        flow = self.schedule.get_flow_from_id(flow_number)
+        if node_id in flow.max_transmissions:
+          counter += 1
+          output_file.write( str_max_transmissions.format(pos=flow_number - 1, val=flow.max_transmissions[node_id]) ) # check if max_transmission depends on etx_link
+
+      output_file.write(str_max_transmissions_len.format(counter))
+
+      if sending_flow_of_node:
+        output_file.write( str_not_ttl_if )
+        sending_slots = sending_flow_of_node.get_timeslots_of_source()
+        for idx, timeslot in enumerate(sending_slots):
+          output_file.write( str_sending_slots.format(idx, timeslot) )
+        output_file.write( str_num_sending_slots.format(len(sending_slots)) )
+        output_file.write( str_not_ttl_endif )
+
+
+
+    output_file.write(str_cpan_node_end)
+
+    output_file.close()
+
+    print("TSCH_SCHEDULE_CONF_MAX_LINKS {}".format(max_number_links_per_node+2))
+
+  def generate_for_enhanced_beacon2(self, output_file_path, minimal_schedule_length=0, with_timesource=False):
+    schedule_index = c_uint8(0)
+    schedule_index.value = 8
+    with open(output_file_path, 'wb') as output_file:
+      output_file.write(schedule_index)

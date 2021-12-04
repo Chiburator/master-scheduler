@@ -41,7 +41,7 @@
 /**
  * \addtogroup tsch
  * @{
-*/
+ */
 
 #include "contiki.h"
 #include "net/packetbuf.h"
@@ -59,16 +59,13 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH Pkt"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#define LOG_LEVEL LOG_LEVEL_TRACE
 
 /* The sequence number of the latest sent EB */
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 uint16_t sequence_number = 0;
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
-
-#if TSCH_PACKET_EB_WITH_RANK
 uint8_t tsch_rank = 255;
-#endif
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 /*
  * We use a local packetbuf_attr array to collect necessary frame settings to
@@ -303,14 +300,17 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   ies.ie_sequence_number = ++sequence_number;
+  ies.ie_rank = tsch_rank;
+  struct tsch_neighbor* time_source = tsch_queue_get_time_source();
+  if(tsch_is_coordinator)
+  {
+    ies.ie_time_source =  linkaddr_node_addr.u8[NODE_ID_INDEX];
+  }else{
+    ies.ie_time_source = time_source->addr.u8[NODE_ID_INDEX];
+  }
+
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
-#if TSCH_PACKET_EB_WITH_RANK
-  ies.ie_rank = tsch_rank;
-  ies.ie_time_source = tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX];
-#endif /* TSCH_PACKET_EB_WITH_RANK */
-
-  LOG_INFO("EBSend;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], ies.ie_sequence_number);
   p = packetbuf_dataptr();
 
   ie_len = frame80215e_create_ie_tsch_synchronization(p,
@@ -363,9 +363,7 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   }
   p += ie_len;
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
-#if TSCH_PACKET_EB_WITH_RANK
   ie_len = frame80215e_create_ie_tsch_rank(p,
                                            packetbuf_remaininglen(),
                                            &ies);
@@ -385,7 +383,7 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   }
   p += ie_len;
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
-#endif /* TSCH_PACKET_EB_WITH_RANK */
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 #if 0
   /* Payload IE list termination: optional */

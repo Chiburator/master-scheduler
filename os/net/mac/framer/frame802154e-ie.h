@@ -78,11 +78,9 @@ struct ieee802154_ies {
   struct tsch_slotframe_and_links ie_tsch_slotframe_and_link;
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   uint16_t ie_sequence_number;
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
-#if TSCH_PACKET_EB_WITH_RANK
   uint8_t ie_rank;
   uint8_t ie_time_source;
-#endif
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   /* Payload Long MLME IEs */
   uint8_t ie_channel_hopping_sequence_id;
   /* We include and parse only the sequence len and list and omit unused fields */
@@ -133,14 +131,11 @@ int frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 int frame80215e_create_ie_tsch_neighbor_discovery(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
-
-#if TSCH_PACKET_EB_WITH_RANK
 int frame80215e_create_ie_tsch_rank(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 int frame80215e_create_ie_time_source(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
-#endif /* TSCH_PACKET_EB_WITH_RANK */
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 /* Parse all Information Elements of a frame */
 int frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,

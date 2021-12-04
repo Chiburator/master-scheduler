@@ -207,7 +207,7 @@ def main():
 
   if generate_contiki_schedule:
     contiki_schedule = Contiki_schedule(parser.graph_etx, schedule, node_ids, network_time_source)
-    contiki_schedule.generate(contiki_output_file, contiki_minimal_schedule_length, contiki_schedule_timesource)
+    contiki_schedule.generate_for_enhanced_beacon2(contiki_output_file, contiki_minimal_schedule_length, contiki_schedule_timesource)
 
 
 if __name__ == "__main__":

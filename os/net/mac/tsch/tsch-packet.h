@@ -94,12 +94,8 @@ by default, useful in case of duplicate seqno */
 /* The sequence number of the latest sent EB */
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 extern uint16_t sequence_number;
-#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
-
-// Rank of the node. start with worst rank
-#if TSCH_PACKET_EB_WITH_RANK
 extern uint8_t tsch_rank;
-#endif
+#endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 /********** Functions *********/
 

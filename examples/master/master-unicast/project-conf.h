@@ -11,7 +11,7 @@
 #define MASTER_CONF_SCHEDULE "Master/Schedules/test_cooja.c"
 
 #undef NUM_COOJA_NODES
-#define NUM_COOJA_NODES 20
+#define NUM_COOJA_NODES 5
 
 #undef NBR_TABLE_CONF_MAX_NEIGHBORS
 #define NBR_TABLE_CONF_MAX_NEIGHBORS 16
