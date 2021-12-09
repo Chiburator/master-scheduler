@@ -220,6 +220,7 @@ void tsch_set_pan_secured(int enable);
 void tsch_set_rank(int rank);
 
 extern uint16_t counter_test;
+extern uint8_t tsch_eb_active;
 
 #endif /* __TSCH_H__ */
 /** @} */

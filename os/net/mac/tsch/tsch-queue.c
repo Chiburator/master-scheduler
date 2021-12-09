@@ -78,9 +78,11 @@ extern uint8_t perform_retransmission(struct tsch_link *link);
 #endif /* TSCH_EXTENDED_RETRANSMISSIONS */
 
 /* We have as many packets are there are queuebuf in the system */
-MEMB(packet_memb, struct tsch_packet, QUEUEBUF_NUM);
+MEMB(packet_memb, struct tsch_packet, QUEUEBUF_NUM); // 8 packets
 MEMB(neighbor_memb, struct tsch_neighbor, TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
 LIST(neighbor_list);
+
+//16 neighbors can each hold 8 packets. but a max of 8 packets can be allocated
 
 /* Broadcast and EB virtual neighbors */
 struct tsch_neighbor *n_broadcast;
@@ -361,6 +363,7 @@ tsch_queue_add_packet(const linkaddr_t *addr, uint8_t max_transmissions,
     if (n != NULL)
     {
       put_index = ringbufindex_peek_put(&n->tx_ringbuf);
+      LOG_ERR("Put index: %d, nbr packets: %d for nbr %d, total elements: %d\n",  put_index, tsch_queue_packet_count(addr), addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count());
       if (put_index != -1)
       {
         p = memb_alloc(&packet_memb);
@@ -403,6 +406,8 @@ tsch_queue_add_packet(const linkaddr_t *addr, uint8_t max_transmissions,
             memb_free(&packet_memb, p);
             //--packet_memb_count;
           }
+        }else{
+          LOG_ERR("! add packet failed, p is NULL \n");
         }
       }
     }
@@ -454,6 +459,7 @@ tsch_queue_remove_packet_from_queue(struct tsch_neighbor *n)
           //} else {
           //--num_packets;
         } //*/
+        LOG_ERR("Removed Packet at index %d for nbr %d\n", get_index, n->addr.u8[NODE_ID_INDEX]);
         return n->tx_array[get_index];
       }
       else

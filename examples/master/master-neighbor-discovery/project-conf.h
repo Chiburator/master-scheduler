@@ -6,6 +6,7 @@
 
 #undef  TESTBED
 #define TESTBED TESTBED_COOJA
+//#define TESTBED TESTBED_KIEL
 
 #define NUM_COOJA_NODES 20
 
@@ -29,6 +30,8 @@
 #define TSCH_CONF_TTL_BASED_RETRANSMISSIONS  0
 
 #define MASTER_TSCH_COORDINATOR 0x01
+//hohe last = node 12 oder 13  0x0C / 0x0D
+//#define MASTER_TSCH_COORDINATOR 0x08
 
 #include "net/master-routing/master-project-conf.h"
 

@@ -64,6 +64,7 @@
 #include "lib/random.h"
 
 uint16_t counter_test = 0;
+uint8_t tsch_eb_active = 1;
 
 #if UIP_CONF_IPV6_RPL
 #include "net/mac/tsch/tsch-rpl.h"
@@ -563,7 +564,7 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
   nbr->missed_ebs += (*data - nbr->last_eb) - 1;
   nbr->last_eb = *data;
 
-  LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], *data);
+  //LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], *data);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -635,6 +636,7 @@ tsch_tx_process_pending(void)
     LOG_INFO_(", seqno %u, status %d, tx %d\n",
               packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO), p->ret, p->transmissions);
     /* Call packet_sent callback */
+    *(uint8_t*)(p->ptr + 1) = p->header_len;
     mac_call_sent_callback(p->sent, p->ptr, p->ret, p->transmissions);
     /* Free packet queuebuf */
     tsch_queue_free_packet(p);
@@ -1065,7 +1067,7 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
   {
     unsigned long delay;
 
-    if (tsch_is_associated && tsch_current_eb_period > 0)
+    if (tsch_is_associated && tsch_current_eb_period > 0 && tsch_eb_active)
     {
       /* Enqueue EB only if there isn't already one in queue */
       if (tsch_queue_packet_count(&tsch_eb_address) == 0)

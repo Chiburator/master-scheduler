@@ -806,7 +806,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
     }
 
     tsch_radio_off(TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT);
-
+    LOG_ERR("Transmitt try %i to dest %d done with status %d\n", current_packet->transmissions, current_link->addr.u8[NODE_ID_INDEX], mac_tx_status);
     current_packet->transmissions++;
     current_packet->ret = mac_tx_status;
 
@@ -868,7 +868,9 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
   TSCH_DEBUG_RX_EVENT();
 
   input_index = ringbufindex_peek_put(&input_ringbuf);
-  if(input_index == -1) {
+  //Block already at QUEBUUF_NUM -1 since we might need 1 free packet slot for retransmitting a failed transmit
+  if((input_index == -1) || (tsch_queue_global_packet_count() == (QUEUEBUF_NUM -1))) {
+    LOG_ERR("Dropping packets: index = %i and queue %i of %i\n", input_index, tsch_queue_global_packet_count(), QUEUEBUF_NUM);
     input_queue_drop++;
   } else {
     static struct input_packet *current_input;
@@ -1099,10 +1101,10 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
     }
 
     if(input_queue_drop != 0) {
-      //TSCH_LOG_ADD(tsch_log_message,
-      //    snprintf(log->message, sizeof(log->message),
-      //        "!queue full skipped %u", input_queue_drop);
-      //);
+      TSCH_LOG_ADD(tsch_log_message,
+         snprintf(log->message, sizeof(log->message),
+             "!queue full skipped %u\n", input_queue_drop);
+      );
       input_queue_drop = 0;
     }
   }

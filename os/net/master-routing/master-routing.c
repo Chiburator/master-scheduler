@@ -180,6 +180,7 @@ static mac_callback_t current_output_callback = NULL;
 uint8_t etx_links[(TSCH_QUEUE_MAX_NEIGHBOR_QUEUES - 2) * 2];
 #define MAX_CHARS_PER_ETX_LINK 8
 char str[MAX_CHARS_PER_ETX_LINK * TSCH_QUEUE_MAX_NEIGHBOR_QUEUES + 1]; //'\0' at the end
+char test[100];
 /*-------------------------- Routing configuration --------------------------*/
 
 #if MAC_CONF_WITH_TSCH
@@ -307,6 +308,7 @@ void handle_convergcast(int repeat)
     //LOG_DBG("Max transmissions just so the warning goes away %u", max_transmissions[0]);
     LOG_DBG("Max deployementcount just so the warning goes away %u", schedules[0].is_sender);
     LOG_INFO_LLADDR(&next_dest->addr);
+
     NETSTACK_NETWORK.output(&next_dest->addr);
   }
 
@@ -331,6 +333,7 @@ void handle_convergcast(int repeat)
     }
 
     LOG_INFO("Sending ETX-Links to %u with size %d and retransmits = %i\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], masternet_len, sent_packet_configuration.max_tx);
+    LOG_ERR("Sending packet from %i out\n", mrp.flow_number);
     NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
   }
 }
@@ -411,6 +414,9 @@ int calculate_etx_metric()
 // Called when the first poll command to get this nodes metric is received
 void prepare_etx_metric()
 {
+  //deactive tsch beacons since in a large network, they can fill our packet queue up
+  tsch_eb_active = 0;
+  LOG_ERR("EB deactivated\n");
   mrp.flow_number = node_id;
   mrp.packet_number = ++own_packet_number;
   int command = CM_ETX_METRIC;
@@ -587,12 +593,12 @@ master_install_schedule(void *ptr)
     current_state = ST_POLL_NEIGHBOUR;
     next_dest = tsch_queue_first_nbr();
     handle_convergcast(0);
-  }
-
-  if (current_state == ST_BEGIN_GATHER_METRIC)
-  {
-    LOG_INFO("Starting prepare metric ");
-    prepare_etx_metric();
+  }else{
+    if (current_state == ST_BEGIN_GATHER_METRIC)
+    {
+      LOG_ERR("Starting prepare metric ");
+      prepare_etx_metric();
+    }
   }
 #endif /* MASTER_SCHEDULE */
   started = 1;
@@ -638,7 +644,28 @@ void master_routing_output(void *data, int ret, int transmissions)
   // We requiere the ETX-metric, therefore try again
   if (ret != MAC_TX_OK)
   {
-    LOG_INFO("Repeat request to nbr %i after %i transmits", next_dest->addr.u8[NODE_ID_INDEX], transmissions);
+    int header_len = 0;
+    memcpy(&header_len, data + 1, 1);
+    LOG_ERR("Repeat request after %i transmits\n", transmissions);
+    //TODO:: Print out packetbuffer and loock at the data. try reading from header
+    int i;
+    int offset = 0;
+    uint8_t * testt = (uint8_t *)&mrp;
+    for (i = 0; i < sizeof(mrp); i++)
+    {
+      offset += sprintf(&test[offset], "%i ", *(testt + i));
+    }
+    LOG_ERR("MRP contains before trasnmitting: %s\n", test);
+    memset(&mrp, 0, sizeof(mrp));
+    memcpy(&mrp, packetbuf_dataptr() + header_len, packetbuf_datalen() - header_len);
+    offset = 0;
+    for (i = 0; i < packetbuf_datalen() - header_len; i++)
+    {
+      offset += sprintf(&test[offset], "%i ", *(testt + i));
+    }
+    //packetbuf_copyto(&mrp);
+    LOG_ERR("MRP contains now: %s\n", test);
+    LOG_ERR("MRP contains flownumber: %d with size %d\n", mrp.flow_number, packetbuf_datalen() - header_len);
     handle_convergcast(1);
     return;
   }
@@ -711,7 +738,9 @@ void master_routing_output(void *data, int ret, int transmissions)
       }
       else
       {
-        current_state = ST_EB;
+        LOG_ERR("EB actived!!\n");
+        current_state = ST_WAIT_FOR_SCHEDULE;
+        tsch_eb_active = 1;
       }
     }
   }
@@ -728,17 +757,23 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
     memcpy(&mrp, data, len);
 #ifndef MASTER_SCHEDULE
     int command = mrp.data[0];
-    LOG_INFO("Got a packet from %u with command %u\n", src->u8[NODE_ID_INDEX], command);
+    LOG_ERR("Got a packet from %u with command %u\n", src->u8[NODE_ID_INDEX], command);
     switch (command)
     {
     case CM_GET_ETX_METRIC:
       // Start the metric gathering.
-      current_state = ST_BEGIN_GATHER_METRIC;
-
-      if (started)
+      //TODO:: only send metric on the first receive. otherwise we send multiple times
+      if(current_state == ST_EB)
       {
-        LOG_INFO("Starting prepare metric by command");
-        prepare_etx_metric();
+        current_state = ST_BEGIN_GATHER_METRIC;
+        if (started)
+        {
+          LOG_ERR("Starting prepare metric by command");
+          
+          prepare_etx_metric();
+        }
+      }else{
+        LOG_ERR("Do not send again since we already try to send\n");
       }
       break;
     case CM_ETX_METRIC:
@@ -750,9 +785,12 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
       else
       {
         // Response of the Polling request, forward the metric to own time source
+        tsch_eb_active = 0;
+        LOG_ERR("EB deactivated\n");
         current_state = ST_SEND_METRIC;
         mrp.data[0] = CM_ETX_METRIC;
         masternet_len = len;
+        LOG_ERR("Forward for %i to %i from sender %i", src->u8[NODE_ID_INDEX], tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], mrp.flow_number);
         handle_convergcast(0);
       }
       break;
