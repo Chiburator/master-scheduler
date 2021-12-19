@@ -47,6 +47,7 @@
 
 #include "contiki.h"
 #include "dev/radio.h"
+#include "dev/leds.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "net/queuebuf.h"
@@ -513,10 +514,10 @@ eb_input(struct input_packet *current_input)
         struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
         if(n == NULL)
         {
-          LOG_ERR("NULL PTR when adding a nbr. NBR size = %d from %d for %d\n", tsch_queue_count_nbr(), TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, frame.src_addr[NODE_ID_INDEX]);
+          //LOG_ERR("NULL PTR when adding a nbr. NBR size = %d from %d for %d\n", tsch_queue_count_nbr(), TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, frame.src_addr[NODE_ID_INDEX]);
         }else{
-        tsch_queue_update_neighbour_rank_and_time_source(&n->addr, eb_ies.ie_rank, eb_ies.ie_time_source);
-        LOG_ERR("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
+          tsch_queue_update_neighbour_rank_and_time_source(&n->addr, eb_ies.ie_rank, eb_ies.ie_time_source);
+          //LOG_ERR("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
         }
       }
     #endif
@@ -1055,6 +1056,7 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
       /* Enqueue EB only if there isn't already one in queue */
       if (tsch_queue_packet_count(&tsch_eb_address) == 0)
       {
+        leds_toggle(LEDS_RED);
         uint8_t hdr_len = 0;
         uint8_t tsch_sync_ie_offset;
         /* Prepare the EB packet and schedule it to be sent */
@@ -1083,6 +1085,7 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
             p->header_len = hdr_len;
           }
         }
+        leds_toggle(LEDS_RED);
       }
     }
     if (tsch_current_eb_period > 0)

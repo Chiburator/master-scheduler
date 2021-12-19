@@ -806,7 +806,11 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
     }
 
     tsch_radio_off(TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT);
-    LOG_ERR("Transmitt try %i to dest %d done with status %d\n", current_packet->transmissions, current_link->addr.u8[NODE_ID_INDEX], mac_tx_status);
+    if(!current_neighbor->is_broadcast)
+    {
+      LOG_ERR("Transmitt try %i to dest %d done with status %d\n", current_packet->transmissions, current_link->addr.u8[NODE_ID_INDEX], mac_tx_status);
+    }
+
     current_packet->transmissions++;
     current_packet->ret = mac_tx_status;
 

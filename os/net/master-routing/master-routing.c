@@ -352,7 +352,6 @@ void print_metric(uint8_t *metric, uint8_t metric_owner, uint16_t len)
 
 int calculate_etx_metric()
 {
-  tsch_set_eb_period(CLOCK_SECOND);
   struct tsch_neighbor *nbr = tsch_queue_first_nbr();
   int pos = 0;
   do
@@ -389,9 +388,6 @@ int calculate_etx_metric()
 // Called when the first poll command to get this nodes metric is received
 void prepare_etx_metric()
 {
-  //deactive tsch beacons since in a large network, they can fill our packet queue up
-  tsch_eb_active = 0;
-  LOG_ERR("EB deactivated\n");
   mrp.flow_number = node_id;
   mrp.packet_number = ++own_packet_number;
   int command = CM_ETX_METRIC;
@@ -421,10 +417,9 @@ void poll_nbr_or_finish()
 static void
 master_install_schedule(void *ptr)
 {
-  LOG_TRACE("master_install_schedule \n");
   LOG_INFO("install schedule\n");
-  tsch_set_eb_period(TSCH_EB_PERIOD);
-
+  tsch_eb_active = 0;
+  LOG_ERR("EB deactivated\n");
 #ifdef MASTER_SCHEDULE
   if (node_id == 1){
     int schedule_index = 0;
@@ -542,40 +537,6 @@ master_install_schedule(void *ptr)
   }
 #else
   LOG_INFO("Starting convergcast\n");
-  //if (tsch_is_coordinator)
-  //{
-  //   int fd;
-  //   int r;
-  //   fd = cfs_open(FILENAME, CFS_READ | CFS_APPEND | CFS_WRITE);
-  //   if(fd < 0) {
-  //     LOG_ERR("READ failed to open %s\n", FILENAME);
-  //   }
-  //   uint8_t schedule_index = 1;
-  //   // r = cfs_write(fd, &schedule_index, sizeof(schedule_index));
-  //   // if(r != sizeof(schedule_index)) {
-  //   //   printf("READ failed to write %d bytes to %s\n",
-  //   //         (int)sizeof(schedule_index), FILENAME);
-  //   //   cfs_close(fd);
-  //   // }
-
-  //   printf("READ schedule_index is %i\n", schedule_index);
-
-  //     /* To read back the message, we need to move the file pointer to the
-  //     beginning of the file. */
-  //   if(cfs_seek(fd, 0, CFS_SEEK_SET) != 0) {
-  //     printf("READ seek failed\n");
-  //     cfs_close(fd);
-  //   }
-  //   schedule_index = 125;
-  //   r = cfs_read(fd, &schedule_index, sizeof(schedule_index));
-  //   LOG_INFO("READ r = %i with %i; supposed to read %i\n",r, schedule_index, sizeof(schedule_index));
-  //   if(r != sizeof(schedule_index)) {
-  //     LOG_ERR("READ failed to read %d bytes",(int)sizeof(uint8_t));
-  //     cfs_close(fd);
-  //   }
-  //   cfs_close(fd);
-  //   LOG_INFO("READ BINARY %i\n",schedule_index);
-  //}
   if(tsch_is_coordinator)
   {
     int len = calculate_etx_metric();
@@ -596,7 +557,6 @@ master_install_schedule(void *ptr)
   LOG_INFO("started\n");
   is_configured = 1;
   // if MASTER_SCHEDULE -> install schedule, else -> install ND schedule
-  LOG_TRACE_RETURN("master_install_schedule \n");
 }
 /*---------------------------------------------------------------------------*/
 void master_routing_set_input_callback(master_routing_input_callback callback)
@@ -626,6 +586,7 @@ void master_routing_output(void *data, int ret, int transmissions)
   //memcpy(&command, data, 1);
 
   packet_data_t *packet_data = (packet_data_t *)data;
+  LOG_ERR("Current state: %d", current_state);
 
   if(packet_data->command != CM_GET_ETX_METRIC && packet_data->command != CM_ETX_METRIC)
   {
@@ -693,6 +654,8 @@ void master_routing_output(void *data, int ret, int transmissions)
     else
     {
       current_state = ST_WAIT_FOR_SCHEDULE;
+      tsch_eb_active = 1;
+      LOG_ERR("No neighbors left. EB activate\n");
     }
   }
   else
@@ -822,6 +785,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         // Response of the Polling request, forward the metric to own time source
         if(current_state == ST_WAIT_FOR_SCHEDULE && tsch_queue_is_empty(tsch_queue_get_time_source()))
         {        
+          current_state = ST_SEND_METRIC;
           LOG_ERR("Polling finished but packet arrived. handle convergast!\n");
           handle_convergcast(0);
         }else{
@@ -1062,7 +1026,6 @@ int master_routing_sendto(const void *data, uint16_t datalen, uint8_t receiver)
 void init_master_routing(void)
 {
   LOG_TRACE("init_master_routing \n");
-  LOG_ERR("CHECK end and delimiter are %d %d", (uint8_t)END, (uint8_t)BUF_END_DELIMITER);
 #if NETSTACK_CONF_WITH_MASTER_NET
   if (started == 0)
   {
