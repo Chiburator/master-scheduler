@@ -78,6 +78,21 @@
 #define MASTER_INIT_PERIOD 20 * CLOCK_SECOND
 #endif
 
+//This is requiered for reading binary files with serial-line.c
+#undef IGNORE_CHAR
+#define IGNORE_CHAR(c) (c == 0xfe)
+
+#undef END
+#define END 0xff
+
+#undef BUF_END_DELIMITER
+#define BUF_END_DELIMITER 0xff
+
+
+#undef SERIAL_LINE_INPUT_TYPE
+#define SERIAL_LINE_INPUT_TYPE uint8_t
+
+
 #endif /* __MASTER_CONF_H__ */
 
 /** @} */

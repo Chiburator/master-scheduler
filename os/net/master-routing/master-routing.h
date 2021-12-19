@@ -42,6 +42,7 @@
 
 #include "contiki.h"
 #include "master-conf.h"
+#include "tsch/tsch-schedule.h"
 #include "net/linkaddr.h"
 
 enum phase
@@ -66,6 +67,32 @@ enum commands
   CM_DATA,
   CM_END,
 };
+/* structure used by Master (Python) */
+typedef struct __attribute__((packed))
+{
+  uint8_t slotframe_handle;
+  uint8_t send_receive;
+  uint8_t timeslot;
+  uint8_t channel_offset;
+} scheduled_link_t;
+
+
+/** Master's schedule that will be distributed and applied at all nodes*/
+typedef struct __attribute__((packed)) master_tsch_schedule_t
+{
+  uint8_t own_transmission_flow;
+  uint8_t own_receiver; //is_sender can be checked if own_receiver is available (!= 0)
+  uint8_t forward_to_len; //TODO
+  uint8_t cha_idx_to_dest[2 * MASTER_NUM_FLOWS]; // TODO: format is cha_idx, cha_idx_to, cha_idx+1 ...  How to calculate max space?
+  uint8_t flow_forwards_len; //TODO
+  uint8_t flow_forwards[MASTER_NUM_FLOWS]; // TODO
+  uint8_t max_transmissions_len;  //TODO:: to remove
+  uint8_t max_transmission[MASTER_NUM_FLOWS]; // max_trans[0]= flow 1
+  uint8_t links_len;
+  scheduled_link_t links[TSCH_SCHEDULE_MAX_LINKS];
+} master_tsch_schedule_t;
+
+extern master_tsch_schedule_t schedules[];
 
 /**
  * Function prototype for MasterRouting input callback

@@ -57,7 +57,11 @@
 
 uint8_t *masternet_buf;
 uint16_t masternet_len;
-uint8_t command = 0;
+//uint8_t command[2];
+
+packet_data_t packets[QUEUEBUF_CONF_NUM];
+uint8_t current_packet_index = 0;
+
 static masternet_input_callback current_input_callback = NULL;
 static mac_callback_t current_output_callback = NULL;
 static masternet_config_callback config_callback = NULL;
@@ -114,7 +118,9 @@ output(const linkaddr_t *dest)
   LOG_TRACE("output \n");
   int framer_hdrlen;
   int max_payload;
-  command = 0;
+  //command[0] = 0;
+
+  current_packet_index = (current_packet_index + 1) % QUEUEBUF_CONF_NUM;
 
   leds_on(LEDS_YELLOW);
 
@@ -139,7 +145,8 @@ output(const linkaddr_t *dest)
 
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     //The command will be transformed to a uint8_t
-    command = packet_configuration.command;
+    //command[0] = packet_configuration.command;
+    packets[current_packet_index].command = packet_configuration.command;
   #endif
   }
 
@@ -155,6 +162,13 @@ output(const linkaddr_t *dest)
     /* Framing failed, we assume the maximum header length */
     framer_hdrlen = FIXED_HDRLEN;
   }
+
+  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+    //The command will be transformed to a uint8_t
+    //command[1] = framer_hdrlen;
+    packets[current_packet_index].hdr_len = framer_hdrlen;
+  #endif
+
   max_payload = MAC_MAX_PAYLOAD - framer_hdrlen;
 
   if (masternet_len <= max_payload){
@@ -163,7 +177,8 @@ output(const linkaddr_t *dest)
     //LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
-    NETSTACK_MAC.send(current_output_callback, (void *)&command);
+    //NETSTACK_MAC.send(current_output_callback, (void *)command);
+    NETSTACK_MAC.send(current_output_callback, &packets[current_packet_index]);
     LOG_TRACE_RETURN("output \n");
     return 1;
   } else {

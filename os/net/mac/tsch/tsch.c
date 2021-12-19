@@ -81,7 +81,7 @@ uint8_t tsch_eb_active = 1;
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH"
-#define LOG_LEVEL LOG_LEVEL_DBG
+#define LOG_LEVEL LOG_LEVEL_ERR
 
 #if TSCH_DEBUG_PRINT
 #include <stdio.h>
@@ -406,7 +406,6 @@ void tsch_schedule_keepalive_immediately(void)
 static void
 eb_input(struct input_packet *current_input)
 {
-  LOG_TRACE("eb_input \n");
   /* LOG_INFO("EB received\n"); */
   frame802154_t frame;
   /* Verify incoming EB (does its ASN match our Rx time?),
@@ -507,16 +506,18 @@ eb_input(struct input_packet *current_input)
         tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
         tsch_queue_update_time_source_rank(eb_ies.ie_rank);
         tsch_rank = eb_ies.ie_rank + 1;
-        LOG_INFO("Got rank %u from new src %u and my rank was %u \n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank);
+        LOG_ERR("Got rank %u from new src %u and my rank was %u. nbrs = %d\n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank, tsch_queue_count_nbr());
       }
       else{
         
         struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
+        if(n == NULL)
+        {
+          LOG_ERR("NULL PTR when adding a nbr. NBR size = %d from %d for %d\n", tsch_queue_count_nbr(), TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, frame.src_addr[NODE_ID_INDEX]);
+        }else{
         tsch_queue_update_neighbour_rank_and_time_source(&n->addr, eb_ies.ie_rank, eb_ies.ie_time_source);
-        LOG_INFO("Got neighbour");
-       LOG_INFO_LLADDR(&n->addr);
-       LOG_INFO("\n");
-       LOG_INFO("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
+        LOG_ERR("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
+        }
       }
     #endif
     }
@@ -527,30 +528,15 @@ eb_input(struct input_packet *current_input)
   LOG_TRACE_RETURN("eb_input \n");
 }
 /*---------------------------------------------------------------------------*/
-/* TODO:: Implement neighbour_discovery via EB with sequencenumber*/
-
 extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src, const uint16_t *seq_nr)
 {
-  // LOG_TRACE("neighbor_discovery_input \n");
-  // uint8_t node = src->u8[NODE_ID_INDEX];
-  // int i;
-
-  // //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
-  // //Nodes start at 1 and array at 0 -> node-1
-  // if(last_received_eb[node-1] == 0)
-  // {
-  //   first_received_eb[node-1] = *data;
-  //   last_received_eb[node-1] = *data;
-  //   return;
-  // }
-
-  // missed_eb[node-1] += (*data - last_received_eb[node-1]) - 1;
-  // last_received_eb[node-1] = *data;
-
-  // LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], node, *data);
-  // LOG_TRACE_RETURN("neighbor_discovery_input \n");
-  //TODO:: logging so bauen das ich checken kann ob es stimmt, dass eine hohe verlustrate vorliegt.
   struct tsch_neighbor* nbr = tsch_queue_get_nbr(src);
+
+  if(nbr == NULL)
+  {
+    LOG_ERR("NULL PTR when getting NBR for discovery. NBR size = %d from %d\n", tsch_queue_count_nbr(), TSCH_QUEUE_MAX_NEIGHBOR_QUEUES);
+    return;
+  }
 
   //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
   //Nodes start at 1 and array at 0 -> node-1
@@ -566,7 +552,6 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
 
   //LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], *data);
 }
-
 /*---------------------------------------------------------------------------*/
 /* Process pending input packet(s) */
 static void
@@ -635,8 +620,6 @@ tsch_tx_process_pending(void)
     LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
     LOG_INFO_(", seqno %u, status %d, tx %d\n",
               packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO), p->ret, p->transmissions);
-    /* Call packet_sent callback */
-    *(uint8_t*)(p->ptr + 1) = p->header_len;
     mac_call_sent_callback(p->sent, p->ptr, p->ret, p->transmissions);
     /* Free packet queuebuf */
     tsch_queue_free_packet(p);
@@ -854,7 +837,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
     #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
       tsch_queue_update_time_source_rank(ies.ie_rank);
       tsch_rank = ies.ie_rank + 1;
-      LOG_INFO("Got rank %u from src and set my rank to %u\n", ies.ie_rank, tsch_rank);
+      LOG_ERR("Got rank %u from src %d and set my rank to %u, nbrs = %d\n", ies.ie_rank, frame.src_addr[NODE_ID_INDEX], tsch_rank, tsch_queue_count_nbr());
     #endif
 
       /* Set PANID */

@@ -77,6 +77,11 @@ typedef struct master_packetbuf_config_t {
 
 #define FIXED_HDRLEN 21 //might be too much
 
+typedef struct {
+  uint8_t command;
+  uint8_t hdr_len;
+} packet_data_t;
+
 /**
  * Buffer used by the output function
 */
