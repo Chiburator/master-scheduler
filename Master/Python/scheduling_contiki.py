@@ -9,6 +9,26 @@ from scheduling import Schedule
 from scheduling_configuration import Scheduling_strategies
 from cell import Cell
 from flow import Flow
+import serial
+
+class scheduled_link_t(Structure):
+  _fields_ = [("slotframe_handle", c_uint8),
+              ("send_receive", c_uint8),
+              ("timeslot", c_uint8),
+              ("channel_offset", c_uint8)]
+
+class master_tsch_schedule_t(Structure):
+  _fields_ = [("own_transmission_flow", c_uint8),
+              ("is_sender", c_uint8),
+              ("own_receiver", c_uint8),
+              ("forward_to_len", c_uint8),
+              ("cha_idx_to_dest", c_uint8 * 10), #This needs to be 10 at the end
+              ("flow_forwards_len", c_uint8),
+              ("flow_forwards", c_uint8 * 10),#This needs to be 10 at the end
+              ("max_transmissions_len", c_uint8),
+              ("max_transmission", c_uint8 * 10),#This needs to be 10 at the end
+              ("links_len", c_uint8),
+              ("links", scheduled_link_t * 10)]#This needs to be 10 at the end
 
 class Link_options(Enum):
   transmit = 1
@@ -22,6 +42,9 @@ class Link:
   flow_number: int
   neighbor: int # sender or receiver of link
 
+def customresize(array, new_size):
+  resize(array, sizeof(array._type_) * new_size)
+  return (array._type_ * new_size).from_address(addressof(array))
 
 class Contiki_schedule(object):
 
@@ -300,8 +323,7 @@ class Contiki_schedule(object):
     str_current_node_id               = '  schedule_index = {};\n'
 
     str_own_tx_flow                   = '  schedules[schedule_index].own_transmission_flow = {};\n'
-    str_own_receiver                  = '  schedules[schedule_index].is_sender = 1;\n' + \
-                                        '  schedules[schedule_index].own_receiver = {};\n'
+    str_own_receiver                  = '  schedules[schedule_index].own_receiver = {};\n'
 
     str_link_len                      = '  schedules[schedule_index].links_len = {};\n'
     str_link                          = '  schedules[schedule_index].links[{}] = (scheduled_link_t){{ .slotframe_handle={}, .send_receive={}, .timeslot={}, .channel_offset={} }};\n' # slotframe/flow_number, link_option, timeslot, channel offset
@@ -320,12 +342,14 @@ class Contiki_schedule(object):
 
     str_cpan_node_end                 = '}\n'
 
+    schedule_list = []
     self.node_schedule = self.schedule.get_node_schedule(*self.node_ids)
 
     if with_timesource:
       self.get_timesource_for_nodes()
 
     output_file = open(output_file_path, 'w')
+    output_file_test = open("MeinTest.bin", 'wb')
 
     output_file.write(str_cpan_node_beginning.format(self.network_time_source))
     output_file.write(str_current_node_id_init)
@@ -353,26 +377,36 @@ class Contiki_schedule(object):
 
     max_number_links_per_node = 0
     for node_id in [*self.node_schedule]:
-
-      hi = f"hehe{node_id:>10}"
+      schedule_entry = master_tsch_schedule_t()
+      #hi = f"hehe{node_id:>10}"
       output_file.write(str_current_node_id.format(node_id-1));
 
       sending_flow_of_node = self.get_flow_from_sender(node_id)
       if sending_flow_of_node:
-        output_file.write( str_own_tx_flow.format(sending_flow_of_node.flow_number) )
-        output_file.write( str_own_receiver.format(sending_flow_of_node.destination) )
+        output_file.write(str_own_tx_flow.format(sending_flow_of_node.flow_number))
+        output_file.write(str_own_receiver.format(sending_flow_of_node.destination))
+        output_file_test.write(c_uint8(sending_flow_of_node.flow_number))
+        #output_file_test.write(c_uint8(1))
+        output_file_test.write(c_uint8(sending_flow_of_node.destination))
+
+        #schedule_entry.own_transmission_flow = sending_flow_of_node.flow_number
+        #schedule_entry.is_sender = 1
+        #schedule_entry.own_receiver = sending_flow_of_node.destination
 
       links = self.sorted_list_of_links(node_id)
       if len(links) > max_number_links_per_node:
         max_number_links_per_node = len(links)
 
-      output_file.write( str_link_len.format(len(links)) )
+      output_file.write( str_link_len.format(len(links)))
+      output_file_test.write(c_uint8(len(links)))
+      #schedule_entry.links_len = len(links)
 
       last_neighbor = None
       change_neighbor_on_link_index = []
       forward_to = []
       participating_flows_as_sender = []
 
+      links_list = []
       #Links are calculated here. (cha_idx too)
       for link_index, link in enumerate(links):
         if link.neighbor != last_neighbor:
@@ -382,21 +416,59 @@ class Contiki_schedule(object):
         output_file.write(str_link.format(link_index, str(link.flow_number).rjust(2), str(link.link_option).rjust(2),
                                           str(link.timeslot).rjust(2), str(link.channel).rjust(2)))
 
+        output_file_test.write(c_uint8(link.flow_number))
+        output_file_test.write(c_uint8(link.link_option))
+        output_file_test.write(c_uint8(link.timeslot))
+        output_file_test.write(c_uint8(link.channel))
+        #link_c = scheduled_link_t()
+        #link_c.slotframe_handle = link.flow_number
+        #link_c.send_receive = link.link_option
+        #link_c.timeslot = link.timeslot
+        #link_c.channel_offset = link.channel
+        #links_list.append(link_c)
+
         if link.link_option != Link_options.receive.value: # not a receive-only link
           forward_to.append( (link.flow_number, link.neighbor) )
           if link.flow_number not in participating_flows_as_sender:
             participating_flows_as_sender.append(link.flow_number)
 
+      #schedule_entry.links = customresize(schedule_entry.links, len(links_list))
+      #schedule_entry.links = (scheduled_link_t * 10)(*(links_list + [scheduled_link_t(0, 0, 0, 0) for x in range(10 - len(links_list))]))
+
+      #flow_forwards = [item for pair in forward_to for item in pair]
+      #flow_forwards += [0 for _ in range(10 - len(flow_forwards))]
+      #print(forward_to)
+      #print(flow_forwards)
+      #print(len(flow_forwards))
+      #schedule_entry.flow_forwards_len = len(forward_to)
+      #schedule_entry.flow_forwards = customresize(schedule_entry.flow_forwards, len(flow_forwards))
+      #schedule_entry.flow_forwards = (c_uint8 * 10) (*flow_forwards)
+
+      #cha_idx_to_dest = [item for pair in change_neighbor_on_link_index for item in pair]
+      #schedule_entry.forward_to_len = len(change_neighbor_on_link_index)
+      #schedule_entry.cha_idx_to_dest = customresize(schedule_entry.cha_idx_to_dest, len(cha_idx_to_dest))
+      #schedule_entry.cha_idx_to_dest = (c_uint8 * 10) (*(cha_idx_to_dest + [0 for x in range(10 - len(cha_idx_to_dest))]))
+
       forward_to = list(dict.fromkeys(forward_to))
       output_file.write(str_flow_forward_to_len.format(len(forward_to)))
+      output_file_test.write(c_uint8(len(forward_to)))
       for pos in range(0, len(forward_to)):
         output_file.write(str_flow_forward_to.format(pos=pos*2, val=forward_to[pos][0]))  # add key:value pairs where key = flow and value = neighbor to forward
         output_file.write(str_flow_forward_to.format(pos=pos*2 + 1, val=forward_to[pos][1]))
+        output_file_test.write(c_uint8(pos*2))
+        output_file_test.write(c_uint8(forward_to[pos][0]))
+        output_file_test.write(c_uint8(pos*2 + 1))
+        output_file_test.write(c_uint8(forward_to[pos][1]))
 
-      output_file.write(str_forward_to_len.format(len(change_neighbor_on_link_index)))
+      #output_file.write(str_forward_to_len.format(len(change_neighbor_on_link_index)))
+      #output_file_test.write(c_uint8(len(change_neighbor_on_link_index)))
       for pos in range(0, len(change_neighbor_on_link_index)):
         output_file.write(str_forward_to.format(pos=pos*2, val=change_neighbor_on_link_index[pos][0]))
         output_file.write(str_forward_to.format(pos=pos*2 + 1, val=change_neighbor_on_link_index[pos][1]))
+        output_file_test.write(c_uint8(pos*2))
+        output_file_test.write(c_uint8(change_neighbor_on_link_index[pos][0]))
+        output_file_test.write(c_uint8(pos*2 + 1))
+        output_file_test.write(c_uint8(change_neighbor_on_link_index[pos][1]))
 
       counter = 0;
       for flow_number in participating_flows_as_sender:
@@ -404,8 +476,12 @@ class Contiki_schedule(object):
         if node_id in flow.max_transmissions:
           counter += 1
           output_file.write( str_max_transmissions.format(pos=flow_number - 1, val=flow.max_transmissions[node_id]) ) # check if max_transmission depends on etx_link
+          output_file_test.write(c_uint8(flow_number - 1,))
+          output_file_test.write(c_uint8(flow.max_transmissions[node_id]))
 
-      output_file.write(str_max_transmissions_len.format(counter))
+      #output_file.write(str_max_transmissions_len.format(counter))
+
+      #schedule_entry.max_transmissions_len = counter
 
       if sending_flow_of_node:
         output_file.write( str_not_ttl_if )
@@ -415,7 +491,7 @@ class Contiki_schedule(object):
         output_file.write( str_num_sending_slots.format(len(sending_slots)) )
         output_file.write( str_not_ttl_endif )
 
-
+      #output_file_test.write(c_uint8('\n'))
 
     output_file.write(str_cpan_node_end)
 
@@ -426,5 +502,6 @@ class Contiki_schedule(object):
   def generate_for_enhanced_beacon2(self, output_file_path, minimal_schedule_length=0, with_timesource=False):
     schedule_index = c_uint8(0)
     schedule_index.value = 8
+    
     with open(output_file_path, 'wb') as output_file:
       output_file.write(schedule_index)
