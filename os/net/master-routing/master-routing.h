@@ -52,6 +52,8 @@ enum phase
   ST_POLL_NEIGHBOUR,
   ST_SEND_METRIC,
   ST_WAIT_FOR_SCHEDULE,
+  ST_DIST_SCHEDULE,
+  ST_SCHEDULE_INSTALLED,
   ST_END,
 };
 
@@ -60,39 +62,23 @@ enum commands
   CM_NO_COMMAND,
   CM_GET_ETX_METRIC,
   CM_ETX_METRIC,
-  CM_SCHEDULE_WHOLE,
-  CM_SCHEDULE_START,
-  CM_SCHEDULE_PART,
+  CM_SCHEDULE,
   CM_SCHEDULE_END,
   CM_DATA,
   CM_END,
 };
-/* structure used by Master (Python) */
-typedef struct __attribute__((packed))
+
+/** Master's routing packet with "header" */
+typedef struct __attribute__((packed)) master_routing_packet_t
 {
-  uint8_t slotframe_handle;
-  uint8_t send_receive;
-  uint8_t timeslot;
-  uint8_t channel_offset;
-} scheduled_link_t;
-
-
-/** Master's schedule that will be distributed and applied at all nodes*/
-typedef struct __attribute__((packed)) master_tsch_schedule_t
-{
-  uint8_t own_transmission_flow;
-  uint8_t own_receiver; //is_sender can be checked if own_receiver is available (!= 0)
-  uint8_t forward_to_len; //TODO
-  uint8_t cha_idx_to_dest[2 * MASTER_NUM_FLOWS]; // TODO: format is cha_idx, cha_idx_to, cha_idx+1 ...  How to calculate max space?
-  uint8_t flow_forwards_len; //TODO
-  uint8_t flow_forwards[MASTER_NUM_FLOWS]; // TODO
-  uint8_t max_transmissions_len;  //TODO:: to remove
-  uint8_t max_transmission[MASTER_NUM_FLOWS]; // max_trans[0]= flow 1
-  uint8_t links_len;
-  scheduled_link_t links[TSCH_SCHEDULE_MAX_LINKS];
-} master_tsch_schedule_t;
-
-extern master_tsch_schedule_t schedules[];
+  uint8_t flow_number; // use as sender in case of neighbor discovery
+  uint16_t packet_number;
+#if TSCH_TTL_BASED_RETRANSMISSIONS
+  uint16_t ttl_slot_number;
+  uint16_t earliest_tx_slot;
+#endif /* TSCH_TTL_BASED_RETRANSMISSIONS*/
+  uint8_t data[MASTER_MSG_LENGTH];
+} master_routing_packet_t;
 
 /**
  * Function prototype for MasterRouting input callback
