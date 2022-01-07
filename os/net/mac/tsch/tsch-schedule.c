@@ -226,10 +226,10 @@ tsch_schedule_add_link(struct tsch_slotframe *slotframe,
         }
         linkaddr_copy(&l->addr, address);
 
-        LOG_INFO("add_link %u %u %u %u %u ",
-               slotframe->handle, link_options, link_type, timeslot, channel_offset);
-        LOG_INFO_LLADDR(address);
-        LOG_INFO_("\n");
+        // LOG_INFO("add_link %u %u %u %u %u ",
+        //        slotframe->handle, link_options, link_type, timeslot, channel_offset);
+        // LOG_INFO_LLADDR(address);
+        // LOG_INFO_("\n");
         /* Release the lock before we update the neighbor (will take the lock) */
         tsch_release_lock();
 
@@ -405,6 +405,7 @@ tsch_schedule_get_next_active_link(struct tsch_asn_t *asn, uint16_t *time_offset
   if(backup_link != NULL) {
     *backup_link = curr_backup;
   }
+  //LOG_ERR("Current best link from sf %d with type %d\n", curr_best->handle, curr_best->link_type);
   return curr_best;
 }
 /*---------------------------------------------------------------------------*/

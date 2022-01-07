@@ -33,6 +33,11 @@ void master_schedule_set_schedule_loaded_callback(masternet_schedule_loaded call
 
 uint8_t asciiHex_to_int(uint8_t *asciiHex)
 {
+  if(*(asciiHex) == 0)
+  {
+    return 0;
+  }
+
   uint8_t HigherNibble = *(asciiHex);
   uint8_t lowerNibble = *(asciiHex + 1);
 
@@ -69,13 +74,20 @@ void write_to_flash(uint8_t * data)
 {
   int r = 0;
   int len = 0;
-
-  while(*(data + len) != (uint8_t)'\0')
+  //int c = 0;
+  while(*(data + len) != 0)
   {
+    // if(c == 19)
+    // {
+    //   c = 0;
+    //   printf("\n");
+    // }
     *(data + (len/2)) = asciiHex_to_int(data + len);
+    //printf("%x ", *(data + (len/2)));
     len += 2;
+    //c++;
   }
-
+  //printf("\n");
   r = cfs_write(fd, data, len/2);
   if(r != len/2) {
     LOG_ERR("Failed to write %d bytes to %s\n", len/2, FILENAME);
@@ -84,7 +96,7 @@ void write_to_flash(uint8_t * data)
   }
 
   total_bytes_written += r;
-  LOG_ERR("Wrote %d bytes\n", total_bytes_written);
+  LOG_ERR("Writting bytes %d \n", total_bytes_written);
 }
 
 void close_file()
@@ -201,7 +213,7 @@ void show_bytes()
   }
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.schedule_length);
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.slot_frames);
-  LOG_ERR("schedule_length and slot_frames = %s\n", string);
+  printf("schedule_length and slot_frames = %s\n", string);
 
   memset(string, 0, 360);
   string_offset = 0;
@@ -209,7 +221,7 @@ void show_bytes()
   {
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.sender_of_flow[i]);
   }
-  LOG_ERR("sender_of_flow = %s\n", string);
+  printf("sender_of_flow = %s\n", string);
 
   memset(string, 0, 360);
   string_offset = 0;
@@ -217,13 +229,13 @@ void show_bytes()
   {
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.receiver_of_flow[i]);
   }
-  LOG_ERR("receiver_of_flow = %s\n", string);
+  printf("receiver_of_flow = %s\n", string);
 
   memset(string, 0, 360);
   string_offset = 0;
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].own_transmission_flow);
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].own_receiver);
-  LOG_ERR("own_transmission_flow and own_receiver = %s\n", string);
+  printf("own_transmission_flow and own_receiver = %s\n", string);
 
   memset(string, 0, 360);
   string_offset = 0;
@@ -231,14 +243,14 @@ void show_bytes()
   {
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].flow_forwards[i]);
   }
-  LOG_ERR("own flow_forwards = %s\n", string);
+  printf("own flow_forwards = %s\n", string);
   memset(string, 0, 360);
   string_offset = 0;
   for(i = 0; i < 8; i++)
   {
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].max_transmission[i]);
   }
-  LOG_ERR("own max_transmission = %s\n", string);
+  printf("own max_transmission = %s\n", string);
   memset(string, 0, 360);
   string_offset = 0;
   for(i = 0; i < schedules[idx_test].links_len; i++)
@@ -248,7 +260,7 @@ void show_bytes()
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].links[i].timeslot);
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].links[i].channel_offset);
   }
-  LOG_ERR("own links = %s\n", string);
+  printf("own links = %s\n", string);
   idx_test++;
 }
 

@@ -31,7 +31,7 @@
  */
 #include "dev/serial-line.h"
 #include <string.h> /* for memcpy() */
-
+#include <stdio.h>
 #include "lib/ringbuf.h"
 
 #ifdef SERIAL_LINE_CONF_BUFSIZE
@@ -61,6 +61,37 @@ PROCESS(serial_line_process, "Serial driver");
 process_event_t serial_line_event_message;
 
 /*---------------------------------------------------------------------------*/
+
+uint8_t asciiHex_to_int2(uint8_t *asciiHex)
+{
+  if(*(asciiHex) == 0)
+  {
+    return 0;
+  }
+
+  uint8_t HigherNibble = *(asciiHex);
+  uint8_t lowerNibble = *(asciiHex + 1);
+
+  if(lowerNibble >= (uint8_t) 'A')
+  {
+    lowerNibble = lowerNibble - (uint8_t)'A';
+  }else{
+    lowerNibble = lowerNibble - (uint8_t)'0';
+  }
+
+
+  if(HigherNibble >= (uint8_t) 'A')
+  {
+    HigherNibble = HigherNibble - (uint8_t)'A';
+  }else{
+    HigherNibble = HigherNibble - (uint8_t)'0';
+  }
+
+  
+  uint8_t result = (HigherNibble << 4) + lowerNibble;
+  //LOG_ERR("READTEST make %d to %d and %d to %d = %d\n",*(asciiHex), lowerNibble,  *(asciiHex + 1), HigherNibble, result);
+  return result;
+}
 int
 serial_line_input_byte(unsigned char c)
 {
@@ -80,9 +111,10 @@ serial_line_input_byte(unsigned char c)
     /* Buffer overflowed:
      * Only (try to) add terminator characters, otherwise skip */
     if(c == END && ringbuf_put(&rxbuf, c) != 0) {
-      overflow = 0;
+      overflow = 0;;
     }
   }
+
 
   /* Wake up consumer process */
   process_poll(&serial_line_process);
@@ -110,13 +142,33 @@ PROCESS_THREAD(serial_line_process, ev, data)
       if(c != END) {
         if(ptr < BUFSIZE-1) {
           buf[ptr++] = (uint8_t)c;
+          printf("!%x", c);
         } else {
           /* Ignore character (wait for EOL) */
         }
       } else {
         /* Terminate */
         buf[ptr++] = (uint8_t)'\0';
+        // printf("GOT BYTES %d\n", ptr);
+        // int i;
+        // int c = 0;
+        // for(i = 0; i < ptr; i +=2)
+        // {
+        //   if(c == 20)
+        //   {
+        //     c = 0;
+        //     printf("\n");
+        //   }
+        //   if((uint8_t)buf[i] != 0)
+        //   {
+        //     printf("%x ", asciiHex_to_int2((uint8_t *)&buf[i]));
 
+        //   }else{
+        //     printf("Found delimiter \n");
+        //   }
+        //   c++;
+        // }
+        // printf("\n");
         /* Broadcast event */
         process_post(PROCESS_BROADCAST, serial_line_event_message, buf);
 

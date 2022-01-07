@@ -65,12 +65,12 @@ PROCESS_THREAD(master_unicast_process, ev, data)
       PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
 
       uint8_t payload_index;
-      for (payload_index = 0; payload_index < MASTER_MSG_LENGTH; ++payload_index){
+      for (payload_index = 0; payload_index < MASTER_PAYLOAD_LENGTH; ++payload_index){
         payload[payload_index] = (uint8_t)(random_rand() >> 8);
       }
 
       //success = 
-      master_routing_sendto(&payload, MASTER_MSG_LENGTH, own_receiver);
+      master_routing_sendto(&payload, MASTER_PAYLOAD_LENGTH, own_receiver);
       //LOG_INFO("Success: %u", success);
       etimer_reset(&periodic_timer);
     }

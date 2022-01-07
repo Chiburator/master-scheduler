@@ -103,8 +103,6 @@ static master_routing_packet_t mrp; // masternet_routing_packet   (mrp)
 
 static uint8_t COMMAND_END = 1;
 
-static uint8_t master_schedule_configured = 0;
-
 #if TSCH_TTL_BASED_RETRANSMISSIONS
 static uint8_t first_tx_slot_in_flow[MASTER_NUM_FLOWS];
 static uint8_t last_tx_slot_in_flow[MASTER_NUM_FLOWS];
@@ -236,62 +234,66 @@ uint16_t last_byte_filled = 0;
 uint16_t remaining_len_last_packet = 0;
 uint8_t finished = 0;
 
-uint8_t fill_packet(int part_filled)
+uint8_t fill_packet(int bytes_in_packet)
 {
-  printf("----------------------------------------------------------------\n");
-  printf("At the beginning %d\n", part_filled);
+  printf("Start reading at: %d\n", bytes_in_packet);
   if(finished)
   {
       return 1;
   }
   uint8_t schedule_finished = 0;
 
-  mrp.data[part_filled] = last_schedule_id_started;             //schedule id where unpacking starts again
-  mrp.data[part_filled + 1] = (last_byte_filled >> 8) & 255;    //where writting data was stoped at last iteration in the last schedule id
-  mrp.data[part_filled + 2] = last_byte_filled & 255; 
-  part_filled += 3;
+  mrp.data[bytes_in_packet] = last_schedule_id_started;             //schedule id where unpacking starts again
+  mrp.data[bytes_in_packet + 1] = (last_byte_filled >> 8) & 255;    //where writting data was stoped at last iteration in the last schedule id
+  mrp.data[bytes_in_packet + 2] = last_byte_filled & 255; 
+  bytes_in_packet += 3;
 
   uint16_t schedule_len = 2 + 2 * MASTER_NUM_FLOWS + 1 + schedules[last_schedule_id_started].links_len * sizeof(scheduled_link_t);
   while(last_schedule_id_started < deployment_node_count)
   {
-    if((MASTER_MSG_LENGTH - part_filled) < 2)
+    //Send packet if even the length of the packets has not enough space
+    if((MASTER_MSG_LENGTH - bytes_in_packet) < 2)
     {
       break;
     }
-    printf("Schedule index %d = %d bytes long, last_byte_filled = %d, remaining %d bytes\n", last_schedule_id_started, schedule_len, last_byte_filled, schedule_len - last_byte_filled);
+
+    //remove the bytes from the last packets from the total length
     schedule_len -= last_byte_filled;
-    mrp.data[part_filled] = (schedule_len >> 8) & 255;    //packet length
-    mrp.data[part_filled + 1] = schedule_len & 255; 
-    part_filled += 2;
-    printf("added 2 bytes for len of this schedule, remaining %d free bytes\n", MASTER_MSG_LENGTH - part_filled);
-    printf("Pack %d bytes starting at %d\n", schedule_len, part_filled);
-    if((MASTER_MSG_LENGTH - part_filled) >= schedule_len)
+
+    //add the length to the packet
+    mrp.data[bytes_in_packet] = (schedule_len >> 8) & 255;    //packet length
+    mrp.data[bytes_in_packet + 1] = schedule_len & 255; 
+    bytes_in_packet += 2;
+
+    if((MASTER_MSG_LENGTH - bytes_in_packet) >= schedule_len)
     {
 
-      memcpy(&mrp.data[part_filled], ((uint8_t *)&schedules[last_schedule_id_started]) + last_byte_filled, schedule_len);
-
-      part_filled += schedule_len;
+      memcpy(&mrp.data[bytes_in_packet], ((uint8_t *)&schedules[last_schedule_id_started]) + last_byte_filled, schedule_len);
+      printf("Packet contains whole schedule for id:%d. Wrote bytes from %d to %d (total %d)\n", last_schedule_id_started, last_byte_filled, last_byte_filled + schedule_len, schedule_len);
+      printf("Packet contains %d links \n", schedules[last_schedule_id_started].links_len);
+      bytes_in_packet += schedule_len;
       last_schedule_id_started++;
       last_byte_filled = 0;
       schedule_finished = 1;
       schedule_len = 2 + 2 * MASTER_NUM_FLOWS + 1 + schedules[last_schedule_id_started].links_len * sizeof(scheduled_link_t);
-        printf("Schedules packet. bytes free %d\n", (MASTER_MSG_LENGTH - part_filled));
+
     }else{
       //if the length of the packet does not fit, leave the rest of the packet empty
-      memcpy(&(mrp.data[part_filled]), (uint8_t *)&schedules[last_schedule_id_started] + last_byte_filled, (MASTER_MSG_LENGTH - part_filled));
-      last_byte_filled = (MASTER_MSG_LENGTH - part_filled);
-      part_filled += last_byte_filled;
+      memcpy(&(mrp.data[bytes_in_packet]), (uint8_t *)&schedules[last_schedule_id_started] + last_byte_filled, (MASTER_MSG_LENGTH - bytes_in_packet));
+      printf("Packet contains part of schedule for id:%d. Wrote bytes from %d to %d (total %d)\n", last_schedule_id_started, last_byte_filled, last_byte_filled + (MASTER_MSG_LENGTH - bytes_in_packet), (MASTER_MSG_LENGTH - bytes_in_packet));
+      printf("Packet contains %d links \n", schedules[last_schedule_id_started].links_len);
+      last_byte_filled = (MASTER_MSG_LENGTH - bytes_in_packet);
+      bytes_in_packet += last_byte_filled;
       schedule_finished = 0;
-      printf("not enough space for whole schedule. start at %d writte %d bytes \n",  part_filled - last_byte_filled, last_byte_filled);
       break;
     }
   }
-
-  masternet_len = part_filled + minimal_routing_packet_size;
-  printf("masternet len = %d \n", masternet_len);
-  printf("last_byte_filled = %d \n", last_byte_filled);
-  printf("remaining_len_last_packet = %d \n", remaining_len_last_packet);
-  printf("last_schedule_id_started= %d \n", last_schedule_id_started);
+  printf("Packet contains out\n");
+  masternet_len = bytes_in_packet + minimal_routing_packet_size;
+  //printf("masternet len = %d \n", masternet_len);
+  //printf("last_byte_filled = %d \n", last_byte_filled);
+  //printf("remaining_len_last_packet = %d \n", remaining_len_last_packet);
+  //printf("last_schedule_id_started= %d \n", last_schedule_id_started);
   //Send schedule and start again later.
 
   if(last_schedule_id_started == deployment_node_count && schedule_finished)
@@ -315,9 +317,7 @@ void unpack_packet(int packet_len)
 {
   //check if this is the first packet
   int unpack_at_index = 2; //0 = command, 1 = packet number, >= 2 data
-
-  printf("------------------------------------------------------------------------------------------\n");
-  printf("unpack start. packet len = %d  \n", packet_len);
+  printf("Unpack packt of len: %d  \n", packet_len);
   if(mrp.data[1] == 1)
   {
     schedule_config.schedule_length = mrp.data[2];
@@ -332,7 +332,7 @@ void unpack_packet(int packet_len)
   uint16_t last_byte_written = mrp.data[unpack_at_index] << 8;
   last_byte_written += mrp.data[unpack_at_index + 1];
   unpack_at_index += 2;
-  printf("unpacked bytes %d\n", unpack_at_index);
+  //printf("unpacked bytes %d\n", unpack_at_index);
   
  
   while(unpack_at_index < packet_len)
@@ -341,12 +341,11 @@ void unpack_packet(int packet_len)
     uint16_t schedule_len = mrp.data[unpack_at_index] << 8;
     schedule_len += mrp.data[unpack_at_index + 1];
     unpack_at_index += 2;
-    printf("Schedule index %d = %d and last byte written %d\n", schedule_index, schedule_len, last_byte_written);
+    //printf("Schedule index %d = %d and last byte written %d\n", schedule_index, schedule_len, last_byte_written);
     if(schedule_len + unpack_at_index <= packet_len)
     {
-      printf("FULL Schedule. unpacked bytes = %d starting at %d\n", schedule_len, unpack_at_index);
       memcpy((uint8_t *)&schedules[schedule_index] + last_byte_written, &mrp.data[unpack_at_index], schedule_len);
-
+      printf("Packet contains full schedule to unpack for schedule %d. start from %d to %d (totall %d)\n", schedule_index, unpack_at_index, unpack_at_index + schedule_len, schedule_len);
       schedule_index++;
       unpack_at_index += schedule_len;
       last_byte_written = 0;
@@ -356,7 +355,7 @@ void unpack_packet(int packet_len)
       //remaining_len_last_packet = (unpack_at_index + schedule_len) - packet_len;
       //Unpack the remaining bytes into the schedule.
       memcpy((uint8_t *)&schedules[schedule_index] + last_byte_written, &(mrp.data[unpack_at_index]), packet_len - unpack_at_index);
-      printf("PART Schedule. starting at %d unpacked %d bytes\n", unpack_at_index, packet_len - unpack_at_index);
+      printf("Packet contains full schedule to unpack for schedule %d. start from %d to %d (totall %d)\n", schedule_index, unpack_at_index, unpack_at_index + packet_len - unpack_at_index, packet_len - unpack_at_index);
       unpack_at_index += packet_len - unpack_at_index;
     }
   }
@@ -415,6 +414,11 @@ uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow)
 static void install_schedule(){
   LOG_INFO("Install schedule now\n");
   int i;
+  //TODO:: This has to be changed later
+  sf[0] = tsch_schedule_get_slotframe_by_handle(0);
+  if (sf[0]){
+    tsch_schedule_remove_slotframe(sf[0]);
+  }
   for(i=1; i <= schedule_config.slot_frames; i++)
   {
     sf[i] = tsch_schedule_get_slotframe_by_handle(i);
@@ -423,7 +427,7 @@ static void install_schedule(){
     }
     sf[i] = tsch_schedule_add_slotframe(i, schedule_config.schedule_length);
   }  
-  
+
   uint8_t link_idx;
   struct master_tsch_schedule_t* schedule = get_own_schedule();
   for (link_idx = 0; link_idx < schedule->links_len; ++link_idx){
@@ -438,8 +442,12 @@ static void install_schedule(){
 
     tsch_schedule_add_link(sf, schedule->links[link_idx].send_receive, LINK_TYPE_NORMAL, &destination, schedule->links[link_idx].timeslot, schedule->links[link_idx].channel_offset);
   }
+  //TODO:: this has to me changed later
+  tsch_schedule_add_link(sf[1], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 40, 0); 
+
   tsch_schedule_print();
   tsch_eb_active = 1;
+  is_configured = 1;
   LOG_INFO("SCHEDULE INSTALLED!!\n");
 }
 
@@ -629,7 +637,6 @@ master_install_schedule(void *ptr)
 
   started = 1;
   LOG_INFO("started\n");
-  is_configured = 1;
 }
 /*---------------------------------------------------------------------------*/
 void master_routing_set_input_callback(master_routing_input_callback callback)
@@ -833,24 +840,24 @@ void master_routing_output(void *data, int ret, int transmissions)
   if(packet_data->command < CM_SCHEDULE)
   {
     handle_covergcast_callback(packet_data, ret, transmissions);
-  }else{
+  }
+
+  if(packet_data->command == CM_SCHEDULE || packet_data->command == CM_SCHEDULE_END)
+  {
     handle_divergcast_callback(packet_data);
   }
 }
 /*---------------------------------------------------------------------------*/
 void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
-  LOG_INFO("master_routing_input \n");
-  // leds_on(LEDS_RED);
-
   if (len >= minimal_routing_packet_size && len <= maximal_routing_packet_size)
   {
     uint8_t forward_to_upper_layer = 0;
     memcpy(&mrp, data, len);
+    int command = mrp.data[0];
 
-    if(master_schedule_configured == 0)
+    if(is_configured == 0)
     {
-      int command = mrp.data[0];
       LOG_ERR("Got a packet from %u with flow_number %i with command %u\n", src->u8[NODE_ID_INDEX], mrp.flow_number, command);
       switch (command)
       {
@@ -958,12 +965,15 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         break;
       }
     }else{
+      LOG_ERR("Received %d bytes with command %u\n", len, command);
       uint16_t received_asn = packetbuf_attr(PACKETBUF_ATTR_RECEIVED_ASN);
       struct master_tsch_schedule_t* schedule = get_own_schedule();
 
       // this node is receiver:
       if (node_id == schedule_config.receiver_of_flow[mrp.flow_number - 1])
       {
+        leds_on(LEDS_RED);
+        LOG_ERR("I am the receiver \n");
         //filter out duplicate packets by remebering the last received packet for a flow
         if (TSCH_SLOTNUM_LT((uint16_t)schedule_config.last_received_relayed_packet_of_flow[mrp.flow_number - 1], mrp.packet_number))
         {                                                                                             // if old known one < new one
@@ -975,11 +985,15 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         {
           LOG_INFO("received %u at ASN %u duplicate from flow %u\n", mrp.packet_number, received_asn, mrp.flow_number);
         }
+        leds_off(LEDS_RED);
       }
       else
       { 
+        leds_on(LEDS_GREEN);
+        LOG_ERR("I am not the receiver \n");
         // forward Packet
         uint8_t next_receiver = get_forward_dest(schedule, mrp.flow_number);
+        LOG_ERR("Forward to next receiver %d\n", next_receiver);
         if (next_receiver != 0)
         {
           //TODO:: refactor this once the data is receivanle.
@@ -1010,6 +1024,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           #else
             sent_packet_configuration.max_tx = get_max_transmissions(schedule, mrp.flow_number);
             masternet_len = len; // send same length as received
+            sent_packet_configuration.command = CM_DATA;
             NETSTACK_NETWORK.output(&destination);
             LOG_INFO("relay %u at ASN %u from flow %u\n", mrp.packet_number, received_asn, mrp.flow_number);
           #endif /* TSCH_TTL_BASED_RETRANSMISSIONS */
@@ -1023,6 +1038,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         {
           LOG_INFO("No routing info for flow %u at node %u\n", mrp.flow_number, node_id);
         }
+        leds_off(LEDS_GREEN);
       }
     }
     
@@ -1030,16 +1046,15 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
     {
       // TODO: exchange source by flow-source
       // upper layer input callback (&mrp.data, len-minimal_routing_packet_size)
-      if(master_schedule_configured)
+      if(is_configured)
       {
-        current_callback((void *)&mrp.data, len - minimal_routing_packet_size, schedule_config.sender_of_flow[mrp.flow_number - 1], schedule_config.receiver_of_flow[mrp.flow_number - 1]);
+        current_callback((void *)&mrp.data[COMMAND_END], len - minimal_routing_packet_size, schedule_config.sender_of_flow[mrp.flow_number - 1], schedule_config.receiver_of_flow[mrp.flow_number - 1]);
       }else{
         current_callback((void *)&mrp.data[COMMAND_END], len - minimal_routing_packet_size - COMMAND_END, src->u8[NODE_ID_INDEX], dest->u8[NODE_ID_INDEX]);
       }
     }
   }
   // leds_off(LEDS_RED);
-  LOG_TRACE_RETURN("master_routing_input \n");
 }
 /*---------------------------------------------------------------------------*/
 master_packetbuf_config_t
@@ -1069,7 +1084,7 @@ int master_routing_configured()
 int master_routing_send(const void *data, uint16_t datalen)
 {
   //In case we dont have the schedule configured, dont do anything
-  if(master_schedule_configured == 0)
+  if(is_configured == 0)
   {
     LOG_WARN("No schedule configured yet!\n");
     return 0;
@@ -1080,7 +1095,8 @@ int master_routing_send(const void *data, uint16_t datalen)
   {
     mrp.flow_number = schedule->own_transmission_flow;
     mrp.packet_number = ++own_packet_number;
-    memcpy(&(mrp.data), data, datalen);
+    mrp.data[0] = CM_DATA;
+    memcpy(&(mrp.data) + 1, data, datalen);
 
     // get current / next active ASN (tsch_current_asn)
     // get corresponding slotframe slot number (TSCH_ASN_MOD(tsch_current_asn, sf->size))
@@ -1126,9 +1142,10 @@ int master_routing_send(const void *data, uint16_t datalen)
 
       LOG_INFO("expected max tx: %u\n", sent_packet_configuration.max_tx);
 
-      masternet_len = minimal_routing_packet_size + datalen;
+      masternet_len = minimal_routing_packet_size + COMMAND_END + datalen;
+      sent_packet_configuration.command = CM_DATA;
       NETSTACK_NETWORK.output(&destination);
-
+      LOG_ERR("Send %d bytes with command %u\n", masternet_len, mrp.data[0]);
       // print sent data
 #if TSCH_TTL_BASED_RETRANSMISSIONS
       LOG_INFO("sent %u at ASN %u till ASN %u from sender %u\n", mrp.packet_number, mrp.earliest_tx_slot, mrp.ttl_slot_number, node_id);

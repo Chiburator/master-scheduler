@@ -381,6 +381,7 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
 //      if(p == NULL) {
 //#     endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */
       if(p == NULL) {
+        LOG_ERR("EB packet was null. link add = %d\n", link->addr.u8[NODE_ID_INDEX]);
         /* Get neighbor queue associated to the link and get packet from it */
 #       if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
         flow_addr.u8[1] = (uint8_t) link->slotframe_handle;
@@ -408,7 +409,7 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
               /* Free packet queuebuf */
               tsch_queue_free_packet(p);
               /* Free all unused neighbors */
-              tsch_queue_free_unused_neighbors();
+              //tsch_queue_free_unused_neighbors(); //This should be off since we need to always keep the nbrs
               p = tsch_queue_get_packet_for_nbr(n, link);
               printf("packet timed out %u\n", (uint16_t)(tsch_current_asn.ls4b)); //TODOLIV: uncomment
             }
@@ -451,6 +452,11 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
   }
   //leds_off(LEDS_BLUE);
   LOG_TRACE_RETURN("get_packet_and_neighbor_for_link \n");
+  // if(p == NULL)
+  // {
+  // LOG_ERR("No packet for link from sf %d with type %d\n", link->handle, link->link_type);
+  // }
+
   return p;
 }
 /*---------------------------------------------------------------------------*/

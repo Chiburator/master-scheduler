@@ -146,14 +146,17 @@ output(const linkaddr_t *dest)
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     //The command will be transformed to a uint8_t
     //command[0] = packet_configuration.command;
+    LOG_INFO("Set command to %d\n", packet_configuration.command);
     packets[current_packet_index].command = packet_configuration.command;
   #endif
   }
 
   if(dest != NULL) {
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, dest);
+    //LOG_ERR("Master net addres != null %d\n", dest->u8[NODE_ID_INDEX]);
   } else {
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &linkaddr_null);
+    //LOG_ERR("Master net addres == null \n");
   }
   packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
 
