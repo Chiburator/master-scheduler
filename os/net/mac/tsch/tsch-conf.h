@@ -257,19 +257,10 @@
 #endif
 
 /* Is TSCH used in central-scheduling-mode? - NEighbor discovery only overwrites this mode */ //use of TTL implementation / expiring packets
-#if TSCH_CONF_WITH_CENTRAL_SCHEDULING && TSCH_CONF_NEIGHBOR_DISCOVERY_ONLY
-#define TSCH_WITH_CENTRAL_SCHEDULING 0
-#elif TSCH_CONF_WITH_CENTRAL_SCHEDULING
+#if TSCH_CONF_WITH_CENTRAL_SCHEDULING
 #define TSCH_WITH_CENTRAL_SCHEDULING TSCH_CONF_WITH_CENTRAL_SCHEDULING
 #else
 #define TSCH_WITH_CENTRAL_SCHEDULING 0
-#endif
-
-/* Is the only purpose to run the neighbor discovery? TODOLIV: create TSCH_CONF_WITH_NEIGHBOR_DISCOVERY when doing on-line ND */ // not used, but
-#ifdef TSCH_CONF_NEIGHBOR_DISCOVERY_ONLY
-#define TSCH_NEIGHBOR_DISCOVERY_ONLY TSCH_CONF_NEIGHBOR_DISCOVERY_ONLY
-#else
-#define TSCH_NEIGHBOR_DISCOVERY_ONLY !TSCH_WITH_CENTRAL_SCHEDULING
 #endif
 
 /* Beacon configuration for online ND */

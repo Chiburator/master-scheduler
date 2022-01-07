@@ -1254,6 +1254,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     /* Broadcast packets shall be added to broadcast queue
      * The broadcast address in Contiki is linkaddr_null which is equal
      * to tsch_eb_address */
+    LOG_ERR("Set to tsch broadcast adress\n");
     addr = &tsch_broadcast_address;
   }
 
@@ -1349,6 +1350,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 #else
     //Create a tsch_packet from the packetbuffer and add it to queue
     /* Enqueue packet */
+    LOG_ERR("Adding packet for to %d\n", addr->u8[NODE_ID_INDEX]);
     p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
 #endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */
     if (p == NULL)

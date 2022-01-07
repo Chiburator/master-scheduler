@@ -56,7 +56,9 @@ PROCESS_THREAD(master_neighbor_discovery_process, ev, data)
   } while(!master_routing_configured());
 
   if (node_is_sender()){
+
     while(1){
+      LOG_ERR("Send data\n");
       PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
       //success = 
       master_routing_sendto(NULL, 0, 0); //TODO: nullpointer might break it

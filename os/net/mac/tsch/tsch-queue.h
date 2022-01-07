@@ -79,8 +79,12 @@
  * one for EBs, one for broadcasts. Other queues are for unicast to neighbors */
 #ifdef TSCH_QUEUE_CONF_MAX_NEIGHBOR_QUEUES
 #define TSCH_QUEUE_MAX_NEIGHBOR_QUEUES TSCH_QUEUE_CONF_MAX_NEIGHBOR_QUEUES
+#else 
+#if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
+#define TSCH_QUEUE_MAX_NEIGHBOR_QUEUES ((NBR_TABLE_CONF_MAX_NEIGHBORS + MASTER_NUM_FLOWS) + 2)  //((NBR_TABLE_CONF_MAX_NEIGHBORS+NBR_TABLE_CONF_MAX_FLOWS) + 2) TODOLIV -> kinda solved by using artificial neighbor queues
 #else
-#define TSCH_QUEUE_MAX_NEIGHBOR_QUEUES ((NBR_TABLE_CONF_MAX_NEIGHBORS) + 2)  //((NBR_TABLE_CONF_MAX_NEIGHBORS+NBR_TABLE_CONF_MAX_FLOWS) + 2) TODOLIV -> kinda solved by using artificial neighbor queues
+#define TSCH_QUEUE_MAX_NEIGHBOR_QUEUES ((NBR_TABLE_CONF_MAX_NEIGHBORS) + 2) 
+#endif
 #endif
 
 /* TSCH CSMA-CA parameters, see IEEE 802.15.4e-2012 */
