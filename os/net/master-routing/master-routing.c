@@ -377,8 +377,8 @@ void master_schedule_loaded_callback()
   //Signal for receiver, that this is not the last packet
   sent_packet_configuration.command = CM_SCHEDULE;
 
-  //Start with universal config 18 bytes + 2 bytes for the command and packet number
-  int packet_bytes_filled = 4 + 2*MASTER_NUM_FLOWS; //20 bytes for the first packet
+  //Start with universal config 34 bytes + 2 bytes for the command and packet number
+  int packet_bytes_filled = 4 + 4*MASTER_NUM_FLOWS; 
   mrp.flow_number = node_id;
   mrp.packet_number = ++own_packet_number;
   mrp.data[0] = CM_SCHEDULE;
@@ -389,6 +389,8 @@ void master_schedule_loaded_callback()
   mrp.data[3] = schedule_config.slot_frames;
   memcpy(&(mrp.data[4]), schedule_config.sender_of_flow, MASTER_NUM_FLOWS);
   memcpy(&(mrp.data[4 + MASTER_NUM_FLOWS]), schedule_config.receiver_of_flow, MASTER_NUM_FLOWS);
+  memcpy(&(mrp.data[4 + 2*MASTER_NUM_FLOWS]), schedule_config.first_tx_slot_in_flow, MASTER_NUM_FLOWS);
+  memcpy(&(mrp.data[4 + 3*MASTER_NUM_FLOWS]), schedule_config.last_tx_slot_in_flow, MASTER_NUM_FLOWS);
 
   fill_packet(packet_bytes_filled);
 }
@@ -996,7 +998,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         LOG_ERR("Forward to next receiver %d\n", next_receiver);
         if (next_receiver != 0)
         {
-          //TODO:: refactor this once the data is receivanle.
+          //TODO:: refactor this once the data is receivable.
           if (TSCH_SLOTNUM_LT((uint16_t)schedule_config.last_received_relayed_packet_of_flow[mrp.flow_number - 1], mrp.packet_number))
           {                                                                                             // if old known one < new one
             schedule_config.last_received_relayed_packet_of_flow[mrp.flow_number - 1] = mrp.packet_number; // update last received packet number

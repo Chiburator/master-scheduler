@@ -117,15 +117,21 @@ void read_file()
   int count_bytes_to_be_read = 0;
 
   //first read the general part of the config
-  //2 bytes for schedzle length and flow number
-  //16 bytes for sender_of_flow and receiver_of_flow
+  //2 bytes for schedule length and flow number
   count_bytes_read += cfs_read(fd, &schedule_config.schedule_length, 1);
   count_bytes_read += cfs_read(fd, &schedule_config.slot_frames, 1);
   count_bytes_to_be_read += 2;
 
+  //16 bytes for sender_of_flow and receiver_of_flow
   count_bytes_read += cfs_read(fd, &schedule_config.sender_of_flow, 8);
   count_bytes_read += cfs_read(fd, &schedule_config.receiver_of_flow, 8);
   count_bytes_to_be_read += 16;
+
+  //16 bytes for first/last tx slot in flow
+  count_bytes_read += cfs_read(fd, &schedule_config.first_tx_slot_in_flow, 8);
+  count_bytes_read += cfs_read(fd, &schedule_config.last_tx_slot_in_flow, 8);
+  count_bytes_to_be_read += 16;
+
   if(count_bytes_read != count_bytes_to_be_read) {
     LOG_ERR("Failed to read %d bytes, read only %d",count_bytes_to_be_read, count_bytes_read);
     cfs_close(fd);
@@ -213,7 +219,7 @@ void show_bytes()
   }
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.schedule_length);
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.slot_frames);
-  printf("schedule_length and slot_frames = %s\n", string);
+  printf("schedule_length and slot_frames = %s for node %d\n", string, idx_test + 1);
 
   memset(string, 0, 360);
   string_offset = 0;
@@ -230,6 +236,22 @@ void show_bytes()
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.receiver_of_flow[i]);
   }
   printf("receiver_of_flow = %s\n", string);
+
+  memset(string, 0, 360);
+  string_offset = 0;
+  for(i = 0; i < 8; i++)
+  {
+    string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.first_tx_slot_in_flow[i]);
+  }
+  printf("first_tx_slot_in_flow = %s\n", string);
+
+  memset(string, 0, 360);
+  string_offset = 0;
+  for(i = 0; i < 8; i++)
+  {
+    string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.last_tx_slot_in_flow[i]);
+  }
+  printf("last_tx_slot_in_flow = %s\n", string);
 
   memset(string, 0, 360);
   string_offset = 0;
@@ -260,7 +282,7 @@ void show_bytes()
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].links[i].timeslot);
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].links[i].channel_offset);
   }
-  printf("own links = %s\n", string);
+  printf("%d Links with links = %s\n", schedules[idx_test].links_len, string);
   idx_test++;
 }
 
@@ -292,6 +314,11 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
       case MESSAGE_END:
         write_to_flash((uint8_t *)(data + 2));
         read_file();
+        show_bytes();
+        show_bytes();
+        show_bytes();
+        show_bytes();
+        show_bytes();
         if(schedule_loaded_callback != NULL)
         {
           schedule_loaded_callback();

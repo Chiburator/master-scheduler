@@ -60,6 +60,8 @@ typedef struct __attribute__((packed)) master_tsch_schedule_universall_config_t
   uint8_t slot_frames; //TODO:: this will be used to init the slotframes starting at 1 
   uint8_t sender_of_flow[MASTER_NUM_FLOWS]; 
   uint8_t receiver_of_flow[MASTER_NUM_FLOWS]; 
+  uint8_t first_tx_slot_in_flow[MASTER_NUM_FLOWS]; 
+  uint8_t last_tx_slot_in_flow[MASTER_NUM_FLOWS]; 
   uint8_t last_received_relayed_packet_of_flow[MASTER_NUM_FLOWS]; 
 } master_tsch_schedule_universall_config_t;
 

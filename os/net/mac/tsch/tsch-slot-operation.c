@@ -381,7 +381,7 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
 //      if(p == NULL) {
 //#     endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */
       if(p == NULL) {
-        LOG_ERR("EB packet was null. link add = %d\n", link->addr.u8[NODE_ID_INDEX]);
+        //LOG_ERR("EB packet was null. link add = %d\n", link->addr.u8[NODE_ID_INDEX]);
         /* Get neighbor queue associated to the link and get packet from it */
 #       if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
         flow_addr.u8[1] = (uint8_t) link->slotframe_handle;

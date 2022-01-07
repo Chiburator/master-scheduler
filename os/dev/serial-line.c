@@ -142,14 +142,14 @@ PROCESS_THREAD(serial_line_process, ev, data)
       if(c != END) {
         if(ptr < BUFSIZE-1) {
           buf[ptr++] = (uint8_t)c;
-          printf("!%x", c);
+          //printf("!%x", c);
         } else {
           /* Ignore character (wait for EOL) */
         }
       } else {
         /* Terminate */
         buf[ptr++] = (uint8_t)'\0';
-        // printf("GOT BYTES %d\n", ptr);
+         printf("GOT BYTES %d\n", ptr);
         // int i;
         // int c = 0;
         // for(i = 0; i < ptr; i +=2)
