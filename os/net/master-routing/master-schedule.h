@@ -67,4 +67,8 @@ typedef struct __attribute__((packed)) master_tsch_schedule_universall_config_t
 
 extern master_tsch_schedule_universall_config_t schedule_config;
 
+struct master_tsch_schedule_t* get_own_schedule();
+uint8_t get_forward_dest_by_slotframe(master_tsch_schedule_t* schedule, uint8_t link_idx);
+uint8_t get_forward_dest(master_tsch_schedule_t* schedule, uint8_t flow);
+uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow);
 #endif /* MASTER_SCHEDULE_H */

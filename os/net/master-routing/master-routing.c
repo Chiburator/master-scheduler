@@ -221,11 +221,6 @@ static void set_destination_link_addr(uint8_t destination_node_id)
   destination.u8[NODE_ID_INDEX] = destination_node_id;
 }
 
-struct master_tsch_schedule_t* get_own_schedule()
-{
-  return &schedules[linkaddr_node_addr.u8[NODE_ID_INDEX] - 1];
-}
-
 /*---------------------------------------------------------------------------*/
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 
@@ -393,24 +388,6 @@ void master_schedule_loaded_callback()
   memcpy(&(mrp.data[4 + 3*MASTER_NUM_FLOWS]), schedule_config.last_tx_slot_in_flow, MASTER_NUM_FLOWS);
 
   fill_packet(packet_bytes_filled);
-}
-
-//Flow_forwards array starts at 0 and flow index at 1, therefore access the correct forward by slotframe - 1
-uint8_t get_forward_dest_by_slotframe(master_tsch_schedule_t* schedule, uint8_t link_idx)
-{
-  return schedule->flow_forwards[schedule->links[link_idx].slotframe_handle - 1];
-}
-
-//Flow_forwards array starts at 0 and flow index at 1, therefore access the correct forward by slotframe - 1
-uint8_t get_forward_dest(master_tsch_schedule_t* schedule, uint8_t flow)
-{
-  return schedule->flow_forwards[flow - 1];
-}
-
-//max transmissions array starts at 0 and flow index at 1, therefore access the correct forward by slotframe - 1
-uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow)
-{
-  return schedule->max_transmission[flow - 1];
 }
 
 static void install_schedule(){
