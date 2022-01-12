@@ -470,6 +470,9 @@ void prepare_forward_config(uint8_t etx_link, uint8_t command)
 # if TSCH_FLOW_BASED_QUEUES
   sent_packet_configuration.flow_number = node_id;
 # endif /* TSCH_FLOW_BASED_QUEUES */
+# if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
+  sent_packet_configuration.send_to_nbr = 1;
+# endif /* TSCH_FLOW_BASED_QUEUES */
 }
 
 //This function is used only to switch the links during convergast. therefore most parameters are set
@@ -1006,6 +1009,11 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           #if TSCH_FLOW_BASED_QUEUES
             sent_packet_configuration.flow_number = mrp.flow_number;
           #endif /* TSCH_FLOW_BASED_QUEUES */
+
+          #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
+            sent_packet_configuration.send_to_nbr = 0;
+          #endif    
+
           #if TSCH_TTL_BASED_RETRANSMISSIONS
             if (TSCH_SLOTNUM_LT((uint16_t)tsch_current_asn.ls4b, mrp.ttl_slot_number + 1))
             { // send only if time left for sending - we might already be in the last slot!
@@ -1130,6 +1138,10 @@ int master_routing_send(const void *data, uint16_t datalen)
 #if TSCH_FLOW_BASED_QUEUES
       sent_packet_configuration.flow_number = mrp.flow_number;
 #endif /* TSCH_FLOW_BASED_QUEUES */
+
+#if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
+      sent_packet_configuration.send_to_nbr = 0;
+#endif    
 
 #if TSCH_TTL_BASED_RETRANSMISSIONS
       // packetbuf set TTL

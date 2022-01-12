@@ -390,6 +390,15 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
         //printf("n has addr: %u %u\n", n->addr.u8[0], n->addr.u8[1]);
         actual_current_neighbor = tsch_queue_get_nbr(&link->addr); //DONELIV: save real neighbor!!
         p = tsch_queue_get_packet_for_nbr(n, link);
+        struct tsch_packet *actual_packet = tsch_queue_get_packet_for_nbr(actual_current_neighbor, link);
+
+        //In neighbor discovery and etx-metric distribution, we need to send packets to nbr and not flows
+        if(actual_packet != NULL && queuebuf_attr(actual_packet->qb, PACKETBUF_ATTR_SEND_NBR))
+        {
+          p = actual_packet;
+          n = actual_current_neighbor;
+        }
+
 #         if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_TTL_BASED_RETRANSMISSIONS //DONELIV
           //DONELIV: check whether TTL didn't expire, if it did, dequeue and pick next
           while(p != NULL) {
@@ -452,11 +461,6 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
   }
   //leds_off(LEDS_BLUE);
   LOG_TRACE_RETURN("get_packet_and_neighbor_for_link \n");
-  // if(p == NULL)
-  // {
-  // LOG_ERR("No packet for link from sf %d with type %d\n", link->handle, link->link_type);
-  // }
-
   return p;
 }
 /*---------------------------------------------------------------------------*/
@@ -1154,6 +1158,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       drift_correction = 0;
       is_drift_correction_used = 0;
       /* Get a packet ready to be sent */
+
       current_packet = get_packet_and_neighbor_for_link(current_link, &current_neighbor);
       // if(current_packet == NULL)
       // {

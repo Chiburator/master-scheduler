@@ -145,6 +145,7 @@ tsch_queue_get_nbr(const linkaddr_t *addr)
 /* Get the first TSCH neighbor */
 struct tsch_neighbor *tsch_queue_first_nbr()
 {
+  //
   if (!tsch_is_locked())
   {
     struct tsch_neighbor *n = list_head(neighbor_list);
@@ -157,7 +158,13 @@ struct tsch_neighbor *tsch_queue_first_nbr()
       }
       else
       {
-        return n;
+        //flow have at index 1 != 0 and at index 0 == 0. We want to send to NBRs and not flows
+        if(n->addr.u8[1] != 0 && n->addr.u8[NODE_ID_INDEX] == 0)
+        {
+          n = list_item_next(n);
+        }else{
+          return n;
+        }
       }
     }
   }
@@ -179,8 +186,14 @@ struct tsch_neighbor *tsch_queue_next_nbr(struct tsch_neighbor *neighbour)
       }
       else
       {
-        return n;
-      }
+        //flow have at index 1 != 0 and at index 0 == 0. We want to send to NBRs and not flows
+        if(n->addr.u8[1] != 0 && n->addr.u8[NODE_ID_INDEX] == 0)
+        {
+          n = list_item_next(n);
+        }else{
+          return n;
+        }
+      }   
     }
   }
   return NULL;
@@ -363,7 +376,7 @@ tsch_queue_add_packet(const linkaddr_t *addr, uint8_t max_transmissions,
     if (n != NULL)
     {
       put_index = ringbufindex_peek_put(&n->tx_ringbuf);
-      LOG_ERR("Put index: %d, nbr packets: %d for nbr %d, total elements: %d\n",  put_index, tsch_queue_packet_count(addr), addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count());
+      LOG_ERR("Put index: %d, nbr packets: %d for nbr %d  %d, total elements: %d\n",  put_index, tsch_queue_packet_count(addr), addr->u8[1], addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count());
       if (put_index != -1)
       {
         p = memb_alloc(&packet_memb);

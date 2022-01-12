@@ -148,6 +148,9 @@ output(const linkaddr_t *dest)
     //command[0] = packet_configuration.command;
     LOG_INFO("Set command to %d\n", packet_configuration.command);
     packets[current_packet_index].command = packet_configuration.command;
+  #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
+    packetbuf_set_attr(PACKETBUF_ATTR_SEND_NBR, packet_configuration.send_to_nbr);
+  #endif
   #endif
   }
 

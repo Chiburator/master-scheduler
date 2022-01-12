@@ -29,11 +29,11 @@
 #endif
 
 #define TSCH_CONF_WITH_CENTRAL_SCHEDULING    1
-#define TSCH_CONF_FLOW_BASED_QUEUES          0
+#define TSCH_CONF_FLOW_BASED_QUEUES          1
 #define TSCH_CONF_TTL_BASED_RETRANSMISSIONS  0
 //#define MASTER_TSCH_COORDINATOR 0x01
 
-#define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_NONE
+//#define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_NONE
 
 #include "net/master-routing/master-project-conf.h"
 

@@ -1337,15 +1337,18 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
   // }
     struct tsch_packet *p;
 #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
-    if (addr != &tsch_broadcast_address)
+    uint8_t send_to_nbr = packetbuf_attr(PACKETBUF_ATTR_SEND_NBR); //In case of metric gathering, we need to contact neighbors directly, not flows
+    if (addr != &tsch_broadcast_address && send_to_nbr == 0)
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(&flow_addr, max_transmissions, sent, ptr);
+      LOG_ERR("Add to flow addr\n");
     }
     else
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
+            LOG_ERR("Add to Nbr addr\n");
     }
 #else
     //Create a tsch_packet from the packetbuffer and add it to queue

@@ -65,6 +65,9 @@ typedef struct master_packetbuf_config_t {
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   //The command will be transformed to a uint8_t
   uint8_t command;
+#if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
+  uint8_t send_to_nbr;
+#endif
 #endif
 } master_packetbuf_config_t;
 
