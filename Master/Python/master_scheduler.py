@@ -34,6 +34,7 @@ def main():
   parser.add_argument('-out', '--output_file', help='Output File of Contiki Schedule')
   parser.add_argument('-m_len', '--minimal_length', help='Minimal Schedule Length, default: minimal possible', type=int)
   parser.add_argument('-with_ts', '--with_scheduled_timesource', help='Schedule timesource for each node, default: False', action='store_true')
+  parser.add_argument('-with_ttl', '--with_ttl_retransmissions', help='Schedule timesource for each node, default: False', action='store_true', default=True)
   parser.add_argument('-p_etx', '--print_etx', help='Print ETX table', action='store_true')
   parser.add_argument('-p_prr', '--print_prr', help='Print PRR table', action='store_true')
   parser.add_argument('-p_rssi', '--print_rssi', help='Print RSSI table', action='store_true')
@@ -147,6 +148,11 @@ def main():
       contiki_schedule_timesource = True
     else:
       contiki_schedule_timesource = False
+
+    if args.with_ttl_retransmissions:
+      with_ttl_retransmissions = True
+    else:
+      with_ttl_retransmissions = False
   else:
     generate_contiki_schedule = False
 
@@ -170,9 +176,6 @@ def main():
     communications.append( (1, 2) )
 
 
-  # TODO:: Hier muss ich eine etx statistik die ich über beacons errechne mitgeben. somit wird der parser nicht gebraucht
-  # TODO:: Ein Graph wird aber weiterhin benötigt zum erstellen des schedules. 
-  # TODO:: wie sieht dieser aus?  
   # Parse neighbor discovery file(s)
   # Node_IDS = list of int, folder = path to log, filename = log file, max_tx =
   #neighbor_parser = Parser(node_ids, folder, filename, max_etx)
@@ -207,7 +210,7 @@ def main():
 
   if generate_contiki_schedule:
     contiki_schedule = Contiki_schedule(parser.graph_etx, schedule, node_ids, network_time_source)
-    contiki_schedule.generate_for_enhanced_beacon(contiki_output_file, contiki_minimal_schedule_length, contiki_schedule_timesource)
+    contiki_schedule.generate_for_enhanced_beacon(contiki_output_file, contiki_minimal_schedule_length, contiki_schedule_timesource, with_ttl_retransmissions)
 
 
 if __name__ == "__main__":

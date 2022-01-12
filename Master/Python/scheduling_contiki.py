@@ -300,7 +300,7 @@ class Contiki_schedule(object):
 
     print("TSCH_SCHEDULE_CONF_MAX_LINKS {}".format(max_number_links_per_node+2))
 
-  def generate_for_enhanced_beacon(self, output_file_path, minimal_schedule_length=0, with_timesource=False):
+  def generate_for_enhanced_beacon(self, output_file_path, minimal_schedule_length=0, with_timesource=False, with_ttl_retransmissions=True):
 
     num_of_flows = 8;
 
@@ -309,8 +309,7 @@ class Contiki_schedule(object):
     if with_timesource:
       self.get_timesource_for_nodes()
 
-    #output_file = open(output_file_path, 'w')
-    output_file_test = open("MeinTest.bin", 'wb')
+    output_file_test = open(output_file_path, 'wb')
 
     slotframe_length = len(self.schedule.schedule[0])
 
@@ -346,25 +345,26 @@ class Contiki_schedule(object):
         output_file_test.write(c_uint8(0))
 
     #Send only if TTL is active
-    for idx in range(1, num_of_flows + 1):
-      found_flow = False
-      for flow in self.schedule.flows:
-        if(idx == flow.flow_number):
-          output_file_test.write(c_uint8(flow.cells[0].timeslot))
-          found_flow = True
+    if(with_ttl_retransmissions):
+      for idx in range(1, num_of_flows + 1):
+        found_flow = False
+        for flow in self.schedule.flows:
+          if(idx == flow.flow_number):
+            output_file_test.write(c_uint8(flow.cells[0].timeslot))
+            found_flow = True
 
-      if (not found_flow):
-        output_file_test.write(c_uint8(0))
+        if (not found_flow):
+          output_file_test.write(c_uint8(0))
 
-    for idx in range(1, num_of_flows + 1):
-      found_flow = False
-      for flow in self.schedule.flows:
-        if (idx == flow.flow_number):
-          output_file_test.write(c_uint8(flow.cells[-1].timeslot))
-          found_flow = True
+      for idx in range(1, num_of_flows + 1):
+        found_flow = False
+        for flow in self.schedule.flows:
+          if (idx == flow.flow_number):
+            output_file_test.write(c_uint8(flow.cells[-1].timeslot))
+            found_flow = True
 
-      if (not found_flow):
-        output_file_test.write(c_uint8(0))
+        if (not found_flow):
+          output_file_test.write(c_uint8(0))
 
     max_number_links_per_node = 0
     for node_id in [*self.node_schedule]:
@@ -434,4 +434,7 @@ class Contiki_schedule(object):
 
     output_file_test.close()
 
-    #upload_schedule.upload_schedule("MeinTest.bin")
+    try:
+      upload_schedule.upload_schedule("MeinTest.bin")
+    except:
+      print("Could not upload schedule")
