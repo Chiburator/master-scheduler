@@ -970,6 +970,10 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         break;
       }
     }else{
+      if(command != CM_DATA)
+      {
+        return;
+      }
       LOG_ERR("Received %d bytes with command %u\n", len, command);
       uint16_t received_asn = packetbuf_attr(PACKETBUF_ATTR_RECEIVED_ASN);
       struct master_tsch_schedule_t* schedule = get_own_schedule();
@@ -977,8 +981,6 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
       // this node is receiver:
       if (node_id == schedule_config.receiver_of_flow[mrp.flow_number - 1])
       {
-        leds_on(LEDS_RED);
-        LOG_ERR("I am the receiver \n");
         //filter out duplicate packets by remebering the last received packet for a flow
         if (TSCH_SLOTNUM_LT((uint16_t)schedule_config.last_received_relayed_packet_of_flow[mrp.flow_number - 1], mrp.packet_number))
         {                                                                                             // if old known one < new one
@@ -990,18 +992,13 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         {
           LOG_INFO("received %u at ASN %u duplicate from flow %u\n", mrp.packet_number, received_asn, mrp.flow_number);
         }
-        leds_off(LEDS_RED);
       }
       else
       { 
-        leds_on(LEDS_GREEN);
-        LOG_ERR("I am not the receiver \n");
         // forward Packet
         uint8_t next_receiver = get_forward_dest(schedule, mrp.flow_number);
-        LOG_ERR("Forward to next receiver %d\n", next_receiver);
         if (next_receiver != 0)
         {
-          //TODO:: refactor this once the data is receivable.
           if (TSCH_SLOTNUM_LT((uint16_t)schedule_config.last_received_relayed_packet_of_flow[mrp.flow_number - 1], mrp.packet_number))
           {                                                                                             // if old known one < new one
             schedule_config.last_received_relayed_packet_of_flow[mrp.flow_number - 1] = mrp.packet_number; // update last received packet number
@@ -1048,7 +1045,6 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         {
           LOG_INFO("No routing info for flow %u at node %u\n", mrp.flow_number, node_id);
         }
-        leds_off(LEDS_GREEN);
       }
     }
     
@@ -1106,7 +1102,7 @@ int master_routing_send(const void *data, uint16_t datalen)
     mrp.flow_number = schedule->own_transmission_flow;
     mrp.packet_number = ++own_packet_number;
     mrp.data[0] = CM_DATA;
-    memcpy(&(mrp.data) + 1, data, datalen);
+    memcpy(&mrp.data[1], data, datalen);
 
     // get current / next active ASN (tsch_current_asn)
     // get corresponding slotframe slot number (TSCH_ASN_MOD(tsch_current_asn, sf->size))
@@ -1150,8 +1146,7 @@ int master_routing_send(const void *data, uint16_t datalen)
       // set max_transmissions
       sent_packet_configuration.max_tx = (uint16_t)TSCH_SLOTNUM_DIFF16(mrp.ttl_slot_number, (uint16_t)(tsch_current_asn.ls4b - 1)); //(uint16_t) (0xFFFF + 1 + nullnet_routing_packet.ttl_slot_number - nullnet_routing_packet.earliest_tx_slot); //include earliest slot!
 #else
-      //sent_packet_configuration.max_tx = get_max_transmissions(schedule, sent_packet_configuration.flow_number);
-      //TODO:: fix this later with flow based queues
+      sent_packet_configuration.max_tx = get_max_transmissions(schedule, sent_packet_configuration.flow_number);
 #endif /* TSCH_TTL_BASED_RETRANSMISSIONS */
 
       LOG_INFO("expected max tx: %u\n", sent_packet_configuration.max_tx);
