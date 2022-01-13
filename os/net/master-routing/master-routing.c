@@ -81,8 +81,7 @@
 #elif TESTBED == TESTBED_KIEL
   static const uint8_t deployment_node_count = 20;
   master_tsch_schedule_t schedules[20] = {0};
-    uint8_t metric_received[20] = {0};
-    static uint8_t destinations[20];
+  uint8_t metric_received[20] = {0};
 #elif TESTBED == TESTBED_DESK
   static const uint8_t deployment_node_count = 5;
   master_tsch_schedule_t schedules[5] = {0};
