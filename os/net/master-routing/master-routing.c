@@ -237,6 +237,17 @@ void set_ttl_retransmissions()
 }
 #endif //TSCH_TTL_BASED_RETRANSMISSIONS
 
+//Once the schedule is distributed, reset the flag that was used while the etx-metric was gathered
+void reset_nbr_metric_received()
+{
+  struct tsch_neighbor *n = tsch_queue_first_nbr();
+
+  while(n != NULL)
+  {
+    n->etx_metric_received = 0;
+    n = tsch_queue_next_nbr(n);
+  }
+}
 
 uint8_t fill_packet(int bytes_in_packet)
 {
@@ -808,6 +819,7 @@ void handle_divergcast_callback(packet_data_t *packet_data)
     {
       LOG_INFO("Callback SCHEDULE END. Start Installing\n");
       install_schedule();
+      reset_nbr_metric_received();
     }
   }else{
 
@@ -818,6 +830,7 @@ void handle_divergcast_callback(packet_data_t *packet_data)
     {
       LOG_INFO("Callback SCHEDULE END. Start Installing\n");
       install_schedule();
+      reset_nbr_metric_received();
     }
   }
 }
