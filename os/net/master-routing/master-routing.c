@@ -104,8 +104,6 @@ static master_routing_packet_t mrp; // masternet_routing_packet   (mrp)
 static uint8_t COMMAND_END = 1;
 
 #if TSCH_TTL_BASED_RETRANSMISSIONS
-static uint8_t first_tx_slot_in_flow[MASTER_NUM_FLOWS];
-static uint8_t last_tx_slot_in_flow[MASTER_NUM_FLOWS];
 static uint16_t last_sent_packet_asn = 0; // to be used only by sender
 #else
 static uint8_t sending_slots[MAX_NUMBER_TRANSMISSIONS];
@@ -229,9 +227,20 @@ uint16_t last_byte_filled = 0;
 uint16_t remaining_len_last_packet = 0;
 uint8_t finished = 0;
 
+#if TSCH_TTL_BASED_RETRANSMISSIONS
+void set_ttl_retransmissions()
+{
+  uint16_t sf_size;
+  sf_size = ((uint16_t)((sf[1]->size).val));
+  sent_packet_configuration.ttl_slot_number = (uint16_t)tsch_current_asn.ls4b + 5*sf_size;
+  sent_packet_configuration.earliest_tx_slot = (uint16_t)tsch_current_asn.ls4b; 
+}
+#endif //TSCH_TTL_BASED_RETRANSMISSIONS
+
+
 uint8_t fill_packet(int bytes_in_packet)
 {
-  printf("Start reading at: %d\n", bytes_in_packet);
+  printf("Start writting at: %d\n", bytes_in_packet);
   if(finished)
   {
       return 1;
@@ -298,6 +307,10 @@ uint8_t fill_packet(int bytes_in_packet)
     sent_packet_configuration.command = CM_SCHEDULE_END;
   }
 
+  #if TSCH_TTL_BASED_RETRANSMISSIONS
+  set_ttl_retransmissions();
+  #endif
+
   NETSTACK_NETWORK.output(&tsch_broadcast_address); //TODO:: find out how to send this via broadcast. deactivate EB again?
 
   if(finished)
@@ -319,7 +332,9 @@ void unpack_packet(int packet_len)
     schedule_config.slot_frames = mrp.data[3];
     memcpy(schedule_config.sender_of_flow, &(mrp.data[4]), MASTER_NUM_FLOWS);
     memcpy(schedule_config.receiver_of_flow, &(mrp.data[4 + MASTER_NUM_FLOWS]), MASTER_NUM_FLOWS);
-    unpack_at_index += 2 + 2*MASTER_NUM_FLOWS;
+    memcpy(schedule_config.first_tx_slot_in_flow, &(mrp.data[4 + 2*MASTER_NUM_FLOWS]), MASTER_NUM_FLOWS);
+    memcpy(schedule_config.last_tx_slot_in_flow, &(mrp.data[4 + 3*MASTER_NUM_FLOWS]), MASTER_NUM_FLOWS);
+    unpack_at_index += 2 + 4*MASTER_NUM_FLOWS;
     printf("first packet contained universal config. unpack %d bytes \n", unpack_at_index);
   }
   uint8_t schedule_index = mrp.data[unpack_at_index];
@@ -450,6 +465,9 @@ void prepare_forward_config(uint8_t etx_link, uint8_t command)
 # if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
   sent_packet_configuration.send_to_nbr = 1;
 # endif /* TSCH_FLOW_BASED_QUEUES */
+#if TSCH_TTL_BASED_RETRANSMISSIONS
+  set_ttl_retransmissions();
+#endif
 }
 
 //This function is used only to switch the links during convergast. therefore most parameters are set
@@ -918,7 +936,10 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           last_schedule_packet_number_received = mrp.data[1];
           tsch_eb_active = 0;
           current_state = ST_DIST_SCHEDULE;
-          unpack_packet(len - minimal_routing_packet_size);
+          unpack_packet(len - minimal_routing_packet_size);       
+          #if TSCH_TTL_BASED_RETRANSMISSIONS
+          set_ttl_retransmissions();
+          #endif
           NETSTACK_NETWORK.output(&tsch_broadcast_address);
         }else{
           LOG_ERR("Skip schedule packet %d\n", mrp.data[1]);
@@ -930,7 +951,6 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         if(last_schedule_packet_number_received == mrp.data[1] - 1)
         {
           sent_packet_configuration.max_tx = 1;
-          LOG_INFO("Set conf to %d\n", sent_packet_configuration.command);
           sent_packet_configuration.command = CM_SCHEDULE_END;
           masternet_len = len;
           last_schedule_packet_number_received = mrp.data[1];
@@ -938,6 +958,9 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           current_state = ST_SCHEDULE_INSTALLED;
           unpack_packet(len - minimal_routing_packet_size);
           schedule_complete = 1;
+          #if TSCH_TTL_BASED_RETRANSMISSIONS
+          set_ttl_retransmissions();
+          #endif
           NETSTACK_NETWORK.output(&tsch_broadcast_address);
         }else{
           LOG_ERR("Skip schedule packet %d\n", mrp.data[1]);
@@ -987,6 +1010,8 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
             sent_packet_configuration.send_to_nbr = 0;
           #endif    
+          
+          sent_packet_configuration.command = CM_DATA;
 
           #if TSCH_TTL_BASED_RETRANSMISSIONS
             if (TSCH_SLOTNUM_LT((uint16_t)tsch_current_asn.ls4b, mrp.ttl_slot_number + 1))
@@ -1008,7 +1033,6 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           #else
             sent_packet_configuration.max_tx = get_max_transmissions(schedule, mrp.flow_number);
             masternet_len = len; // send same length as received
-            sent_packet_configuration.command = CM_DATA;
             NETSTACK_NETWORK.output(&destination);
             LOG_INFO("relay %u at ASN %u from flow %u\n", mrp.packet_number, received_asn, mrp.flow_number);
           #endif /* TSCH_TTL_BASED_RETRANSMISSIONS */
@@ -1091,9 +1115,9 @@ int master_routing_send(const void *data, uint16_t datalen)
     current_sf_slot = TSCH_ASN_MOD(tsch_current_asn, sf->size);
 
 #if TSCH_TTL_BASED_RETRANSMISSIONS
-    mrp.ttl_slot_number = (uint16_t)tsch_current_asn.ls4b + sf_size - current_sf_slot + (uint16_t)last_tx_slot_in_flow[schedule->own_transmission_flow - 1];
-    mrp.earliest_tx_slot = (uint16_t)tsch_current_asn.ls4b + sf_size - current_sf_slot + (uint16_t)first_tx_slot_in_flow[schedule->own_transmission_flow - 1]; // earliest slot in next slotframe
-    if (TSCH_SLOTNUM_LT(mrp.earliest_tx_slot, (last_sent_packet_asn + schedule_length)))
+    mrp.ttl_slot_number = (uint16_t)tsch_current_asn.ls4b + sf_size - current_sf_slot + (uint16_t)schedule_config.last_tx_slot_in_flow[schedule->own_transmission_flow - 1];
+    mrp.earliest_tx_slot = (uint16_t)tsch_current_asn.ls4b + sf_size - current_sf_slot + (uint16_t)schedule_config.first_tx_slot_in_flow[schedule->own_transmission_flow - 1]; // earliest slot in next slotframe
+    if (TSCH_SLOTNUM_LT(mrp.earliest_tx_slot, (last_sent_packet_asn + schedule_config.schedule_length)))
     { // avoid duplicates in earliest ASN
       --own_packet_number;
       LOG_INFO("Too high sending frequency, try again later\n");

@@ -314,11 +314,6 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
       case MESSAGE_END:
         write_to_flash((uint8_t *)(data + 2));
         read_file();
-        show_bytes();
-        show_bytes();
-        show_bytes();
-        show_bytes();
-        show_bytes();
         if(schedule_loaded_callback != NULL)
         {
           schedule_loaded_callback();
