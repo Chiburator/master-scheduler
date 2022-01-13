@@ -1260,7 +1260,17 @@ void init_master_routing(void)
     master_schedule_set_schedule_loaded_callback(master_schedule_loaded_callback);
 
     sf[0] = tsch_schedule_add_slotframe(0, 1);                      // Listen on this every frame where the nodes doesnt send
-    sf[1] = tsch_schedule_add_slotframe(1, deployment_node_count);  // send in this frame every "node_count"
+
+    //Make slotframes always uneven
+    if(deployment_node_count % 2)
+    {
+      LOG_ERR("Uneven\n");
+      sf[1] = tsch_schedule_add_slotframe(1, deployment_node_count);  // send in this frame every "node_count"
+    }else{
+      sf[1] = tsch_schedule_add_slotframe(1, deployment_node_count + 1);  // send in this frame every "node_count"
+      LOG_ERR("Even\n");
+    }
+
     tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);
     tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, node_id - 1, 0);
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
