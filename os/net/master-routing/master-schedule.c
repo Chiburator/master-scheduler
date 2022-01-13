@@ -43,7 +43,7 @@ uint8_t asciiHex_to_int(uint8_t *asciiHex)
 
   if(lowerNibble >= (uint8_t) 'A')
   {
-    lowerNibble = lowerNibble - (uint8_t)'A';
+    lowerNibble = lowerNibble - (uint8_t)'7';
   }else{
     lowerNibble = lowerNibble - (uint8_t)'0';
   }
@@ -51,7 +51,7 @@ uint8_t asciiHex_to_int(uint8_t *asciiHex)
 
   if(HigherNibble >= (uint8_t) 'A')
   {
-    HigherNibble = HigherNibble - (uint8_t)'A';
+    HigherNibble = HigherNibble - (uint8_t)'7';
   }else{
     HigherNibble = HigherNibble - (uint8_t)'0';
   }
