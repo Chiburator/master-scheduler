@@ -92,7 +92,7 @@
 #endif
 
 #define LOG_MODULE "TSCH-SlotOperation"
-#define LOG_LEVEL LOG_LEVEL_DBG
+#define LOG_LEVEL LOG_LEVEL_NONE
 
 /* Check if TSCH_MAX_INCOMING_PACKETS is power of two */
 #if (TSCH_MAX_INCOMING_PACKETS & (TSCH_MAX_INCOMING_PACKETS - 1)) != 0
@@ -393,51 +393,56 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
         struct tsch_packet *actual_packet = tsch_queue_get_packet_for_nbr(actual_current_neighbor, link);
 
         //In neighbor discovery and etx-metric distribution, we need to send packets to nbr and not flows
+        uint8_t skip_ttl = 0;
         if(actual_packet != NULL && queuebuf_attr(actual_packet->qb, PACKETBUF_ATTR_SEND_NBR))
         {
           p = actual_packet;
           n = actual_current_neighbor;
+          skip_ttl = 1;
         }
 
-#         if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_TTL_BASED_RETRANSMISSIONS //DONELIV
+#         if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_TTL_BASED_RETRANSMISSIONS//DONELIV
           //DONELIV: check whether TTL didn't expire, if it did, dequeue and pick next
-          while(p != NULL) {
-            // printf("current slot: %u; earliest slot: %u; latest slot %u; diff earliest %i; diff latest %i; before earliest %i; before latest %i\n",
-            //                       (uint16_t) (tsch_current_asn.ls4b),
-            //                       queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT),
-            //                       queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL),
-            //                       TSCH_SLOTNUM_DIFF16(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT)),
-            //                       TSCH_SLOTNUM_DIFF16(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL)),
-            //                       TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT)),
-            //                       TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL))
-            //                       );
-            if(TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL))){ // send only if time left for sending
-              break;
-            }else{
-              tsch_queue_remove_packet_from_queue(n);
-              /* Free packet queuebuf */
-              tsch_queue_free_packet(p);
-              /* Free all unused neighbors */
-              //tsch_queue_free_unused_neighbors(); //This should be off since we need to always keep the nbrs
-              p = tsch_queue_get_packet_for_nbr(n, link);
-              printf("packet timed out %u\n", (uint16_t)(tsch_current_asn.ls4b)); //TODOLIV: uncomment
+          if(skip_ttl == 0)
+          {
+            while(p != NULL) {
+              // printf("current slot: %u; earliest slot: %u; latest slot %u; diff earliest %i; diff latest %i; before earliest %i; before latest %i\n",
+              //                       (uint16_t) (tsch_current_asn.ls4b),
+              //                       queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT),
+              //                       queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL),
+              //                       TSCH_SLOTNUM_DIFF16(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT)),
+              //                       TSCH_SLOTNUM_DIFF16(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL)),
+              //                       TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT)),
+              //                       TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL))
+              //                       );
+              if(TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL))){ // send only if time left for sending
+                break;
+              }else{
+                tsch_queue_remove_packet_from_queue(n);
+                /* Free packet queuebuf */
+                tsch_queue_free_packet(p);
+                /* Free all unused neighbors */
+                //tsch_queue_free_unused_neighbors(); //This should be off since we need to always keep the nbrs
+                p = tsch_queue_get_packet_for_nbr(n, link);
+                printf("packet timed out %u\n", (uint16_t)(tsch_current_asn.ls4b)); //TODOLIV: uncomment
+              }
             }
-          }
-          //check if it is too early to send 
-          if(p != NULL){
-            //printf("current slot: %u; earliest slot: %u; latest slot %u; before earliest %i; before latest %i\n",
-            //                      (uint16_t) (tsch_current_asn.ls4b),
-            //                      queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT),
-            //                      queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL),
-            //                      RTIMER_CLOCK_LT(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT)),
-            //                      RTIMER_CLOCK_LT(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL))
-            //                      );
-            if(TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT))){
-              //printf("p = NULL\n");
-              p = NULL;
-              //printf("p = NULL set\n");
-            //} else {
-            //  printf("s,%u\n", (uint16_t)(tsch_current_asn.ls4b));
+            //check if it is too early to send 
+            if(p != NULL){
+              //printf("current slot: %u; earliest slot: %u; latest slot %u; before earliest %i; before latest %i\n",
+              //                      (uint16_t) (tsch_current_asn.ls4b),
+              //                      queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT),
+              //                      queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL),
+              //                      RTIMER_CLOCK_LT(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT)),
+              //                      RTIMER_CLOCK_LT(((uint16_t) (tsch_current_asn.ls4b - 1)), queuebuf_attr(p->qb, PACKETBUF_ATTR_TRANSMISSION_TTL))
+              //                      );
+              if(TSCH_SLOTNUM_LT(((uint16_t) (tsch_current_asn.ls4b)), queuebuf_attr(p->qb, PACKETBUF_ATTR_EARLIEST_TX_SLOT))){
+                //printf("p = NULL\n");
+                p = NULL;
+                //printf("p = NULL set\n");
+              //} else {
+              //  printf("s,%u\n", (uint16_t)(tsch_current_asn.ls4b));
+              }
             }
           }
 #         endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_TTL_BASED_RETRANSMISSIONS */
@@ -654,9 +659,9 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
           //printf("TSCH: transmitting ...\n");
           mac_tx_status = NETSTACK_RADIO.transmit(packet_len);
           tx_count++;
-          TSCH_LOG_ADD(tsch_log_message,
-          snprintf(log->message, sizeof(log->message),
-          "transmitting %lu", tx_count));
+          // TSCH_LOG_ADD(tsch_log_message,
+          // snprintf(log->message, sizeof(log->message),
+          // "transmitting %lu", tx_count));
           /* Save tx timestamp */
           tx_start_time = current_slot_start + tsch_timing[tsch_ts_tx_offset];
           /* calculate TX duration based on sent packet len */
@@ -665,9 +670,9 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
           tx_duration = MIN(tx_duration, tsch_timing[tsch_ts_max_tx]);
           /* turn tadio off -- will turn on again to wait for ACK if needed */
           tsch_radio_off(TSCH_RADIO_CMD_OFF_WITHIN_TIMESLOT);
-          TSCH_LOG_ADD(tsch_log_message,
-          snprintf(log->message, sizeof(log->message),
-          "transmitting Finished"));
+          // TSCH_LOG_ADD(tsch_log_message,
+          // snprintf(log->message, sizeof(log->message),
+          // "transmitting Finished"));
           //leds_off(LEDS_GREEN);
 
           if(mac_tx_status == RADIO_TX_OK) {
@@ -751,9 +756,9 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
               }
 
               if(ack_len != 0) {
-                TSCH_LOG_ADD(tsch_log_message,
-                      snprintf(log->message, sizeof(log->message),
-                      "ACK rcvd!"));
+                // TSCH_LOG_ADD(tsch_log_message,
+                //       snprintf(log->message, sizeof(log->message),
+                //       "ACK rcvd!"));
                 //LOG_ERR("ACK rcvd!\n");
                 if(is_time_source) {
                   int32_t eack_time_correction = US_TO_RTIMERTICKS(ack_ies.ie_time_correction);
@@ -884,7 +889,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
   input_index = ringbufindex_peek_put(&input_ringbuf);
   //Block already at QUEBUUF_NUM -1 since we might need 1 free packet slot for retransmitting a failed transmit
   if((input_index == -1) || (tsch_queue_global_packet_count() == (QUEUEBUF_NUM -1))) {
-    LOG_ERR("Dropping packets: index = %i and queue %i of %i\n", input_index, tsch_queue_global_packet_count(), QUEUEBUF_NUM);
+    //LOG_ERR("Dropping packets: index = %i and queue %i of %i\n", input_index, tsch_queue_global_packet_count(), QUEUEBUF_NUM);
     input_queue_drop++;
   } else {
     static struct input_packet *current_input;

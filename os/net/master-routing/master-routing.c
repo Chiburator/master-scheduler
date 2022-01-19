@@ -67,26 +67,32 @@
 #define LOG_MODULE "MASTER-R"
 #define LOG_LEVEL LOG_LEVEL_DBG
 
+//Calculate the worst case package count = (Nodes * Schedule_size_per_node + universall config) / payload_size                    
+#define MAX_PACKETS_PER_SCHEDULE ((NUM_COOJA_NODES * (4*TSCH_SCHEDULE_MAX_LINKS + 2*MASTER_NUM_FLOWS + 3) + 5*MASTER_NUM_FLOWS + 2) / MASTER_MSG_LENGTH)
+
+#if MAX_PACKETS_PER_SCHEDULE % 32 != 0
+  int received_packets_as_bit_array[MAX_PACKETS_PER_SCHEDULE / 32];
+#else
+  int received_packets_as_bit_array[(MAX_PACKETS_PER_SCHEDULE / 32) + 1]; 
+#endif
+
 /*Deployment node count*/
 #if TESTBED == TESTBED_COOJA
   static const uint8_t deployment_node_count = NUM_COOJA_NODES;
   master_tsch_schedule_t schedules[NUM_COOJA_NODES] = {0};
   uint8_t metric_received[NUM_COOJA_NODES] = {0};
-  static uint8_t destinations[NUM_COOJA_NODES];
 #elif TESTBED == TESTBED_FLOCKLAB
   static const uint8_t deployment_node_count = 27;
   master_tsch_schedule_t schedules[27] = {0};
     uint8_t metric_received[27] = {0};
-    static uint8_t destinations[27];
 #elif TESTBED == TESTBED_KIEL
   static const uint8_t deployment_node_count = 20;
   master_tsch_schedule_t schedules[20] = {0};
-  uint8_t metric_received[20] = {0};
+  uint8_t metric_received[21] = {0}; //node 11 is missing and instead node 21 exists
 #elif TESTBED == TESTBED_DESK
   static const uint8_t deployment_node_count = 5;
   master_tsch_schedule_t schedules[5] = {0};
     uint8_t metric_received[5] = {0};
-    static uint8_t destinations[5];
 #endif /* TESTBED */
 
 /*Destination*/
@@ -202,16 +208,6 @@ get_destination_index(uint8_t id)
 #endif
 }
 
-void init_deployment()
-{
-#if TESTBED == TESTBED_COOJA
-  uint8_t cooja_node;
-  for (cooja_node = 0; cooja_node < NUM_COOJA_NODES; ++cooja_node)
-  {
-    destinations[cooja_node] = cooja_node + 1;
-  }
-#endif
-}
 /*---------------------------------------------------------------------------*/
 static void set_destination_link_addr(uint8_t destination_node_id)
 {
@@ -231,7 +227,7 @@ void set_ttl_retransmissions()
 {
   uint16_t sf_size;
   sf_size = ((uint16_t)((sf[1]->size).val));
-  sent_packet_configuration.ttl_slot_number = (uint16_t)tsch_current_asn.ls4b + 5*sf_size;
+  sent_packet_configuration.ttl_slot_number = (uint16_t)tsch_current_asn.ls4b + 10*sf_size;
   sent_packet_configuration.earliest_tx_slot = (uint16_t)tsch_current_asn.ls4b; 
 }
 #endif //TSCH_TTL_BASED_RETRANSMISSIONS
@@ -525,12 +521,12 @@ int set_next_neighbour()
   do
   {
     next_dest = tsch_queue_next_nbr(next_dest);
-
+    LOG_ERR("nbr %d with source %d \n", next_dest->addr.u8[NODE_ID_INDEX], next_dest->time_source);
     if (next_dest == NULL)
     {
       return 0;
     }
-  } while (next_dest->time_source != linkaddr_node_addr.u8[NODE_ID_INDEX]);
+  } while (next_dest->time_source != node_id);
   //LOG_ERR("Selecting Neighbor %u", next_dest->addr.u8[NODE_ID_INDEX]);
   return 1;
 }
@@ -601,6 +597,7 @@ void prepare_etx_metric()
   memcpy(&(mrp.data), &command, sizeof(uint8_t));
   memcpy(&(mrp.data[1]), etx_links, len);
   masternet_len = minimal_routing_packet_size + sizeof(uint8_t) + len;
+
   handle_convergcast(0);
 }
 
@@ -628,13 +625,14 @@ master_install_schedule(void *ptr)
   tsch_eb_active = 0;
   LOG_ERR("EB deactivated\n");
   LOG_INFO("Starting convergcast\n");
-
+  LOG_ERR("My time src is %d and nbr size is %d with %d flows\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, MASTER_NUM_FLOWS);
   if(tsch_is_coordinator)
   {
     int len = calculate_etx_metric();
-    print_metric(etx_links, 1, len);
-    metric_received[0] = 1;
+    print_metric(etx_links, node_id, len);
+    metric_received[node_id - 1] = 1;
     current_state = ST_POLL_NEIGHBOUR;
+    LOG_INFO("Have %d nbrs\n", tsch_queue_count_nbr());
     next_dest = tsch_queue_first_nbr();
     handle_convergcast(0);
   }else{
@@ -729,7 +727,6 @@ void handle_covergcast_callback(packet_data_t *packet_data, int ret, int transmi
     else
     {
       current_state = ST_WAIT_FOR_SCHEDULE;
-      LOG_INFO("EB ACTIVE\n");
       tsch_eb_active = 1;
       prepare_link_for_metric_distribution(&tsch_broadcast_address, node_id - 1);
       LOG_ERR("No neighbors left. EB activate\n");
@@ -838,7 +835,7 @@ void handle_divergcast_callback(packet_data_t *packet_data)
 // Callback for sent packets over TSCH.
 void master_routing_output(void *data, int ret, int transmissions)
 {
-  LOG_INFO("master output \n");
+  LOG_INFO("master callback for sent packets \n");
 
   packet_data_t *packet_data = (packet_data_t *)data;
   LOG_ERR("Current state: %d with command %d\n", current_state, packet_data->command);
@@ -905,15 +902,21 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           metric_received[ mrp.flow_number - 1] = 1;
           print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - minimal_routing_packet_size - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
           int i;
-          int done = 1;
+          int finished_nodes = 0;
+          char test[100];
+          int offset = 0;
           for(i = 0; i < deployment_node_count; i++)
           {
-            if(metric_received[i] != 1)
+            if(metric_received[i] == 1)
             {
-              done = 0;
+              finished_nodes++;
+            }else{
+             offset += sprintf(&test[offset], "%i, ", i +1);
             }
+            
           }
-          if(done)
+          LOG_ERR("Missing metric from %s\n", test);
+          if(finished_nodes == deployment_node_count)
           {
             LOG_ERR("ETX-Links finished!");    
             process_start(&serial_line_schedule_input, NULL);
@@ -1235,9 +1238,7 @@ void init_master_routing(void)
 #if NETSTACK_CONF_WITH_MASTER_NET
   if (started == 0)
   {
-    /* Initialize Testbed/Deployment */
-    init_deployment();
-
+    LOG_INFO("Start master!\n");
     /* configure transmit power */
 #if CONTIKI_TARGET_ZOUL && defined(MASTER_CONF_CC2538_TX_POWER)
     NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, MASTER_CONF_CC2538_TX_POWER);
@@ -1287,7 +1288,8 @@ void init_master_routing(void)
     tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, node_id - 1, 0);
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
     LOG_INFO("Time to run before convergcast = %i", ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000);
-    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, master_install_schedule, NULL);
+    //ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, master_install_schedule, NULL);
+    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * 60), master_install_schedule, NULL);
   #else
     sf[0] = tsch_schedule_add_slotframe(0, 1);
     tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);

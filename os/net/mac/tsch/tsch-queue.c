@@ -65,7 +65,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH Queue"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 /* Check if TSCH_QUEUE_NUM_PER_NEIGHBOR is power of two */ // TODOLIV: allow 0 ? maybe already
 #if (TSCH_QUEUE_NUM_PER_NEIGHBOR & (TSCH_QUEUE_NUM_PER_NEIGHBOR - 1)) != 0
@@ -116,6 +116,7 @@ tsch_queue_add_nbr(const linkaddr_t *addr)
         tsch_queue_backoff_reset(n);
         /* Add neighbor to the list */
         list_add(neighbor_list, n);
+        LOG_ERR("Added nbr %d \n", n->addr.u8[NODE_ID_INDEX]);
       }
       tsch_release_lock();
     }
@@ -204,15 +205,22 @@ int tsch_queue_count_nbr()
   int count = 0;
   if (!tsch_is_locked())
   {
+    //TODO:: check this if it makes nodes crash?
     struct tsch_neighbor *n = list_head(neighbor_list);
     while (n != NULL)
     {
-      if (!linkaddr_cmp(&n->addr, &tsch_broadcast_address) &&
-          !linkaddr_cmp(&n->addr, &tsch_eb_address))
+      if (linkaddr_cmp(&n->addr, &tsch_broadcast_address) ||
+          linkaddr_cmp(&n->addr, &tsch_eb_address) ||
+          (n->addr.u8[1] != 0 && n->addr.u8[NODE_ID_INDEX] == 0))
       {
-        count++;
+        n = list_item_next(n);
       }
-      n = list_item_next(n);
+      else
+      {
+        //flow have at index 1 != 0 and at index 0 == 0. We want to send to NBRs and not flows
+        count++;
+        n = list_item_next(n);
+      }   
     }
   }
   return count;
@@ -376,7 +384,7 @@ tsch_queue_add_packet(const linkaddr_t *addr, uint8_t max_transmissions,
     if (n != NULL)
     {
       put_index = ringbufindex_peek_put(&n->tx_ringbuf);
-      LOG_ERR("Put index: %d, nbr packets: %d for nbr %d  %d, total elements: %d\n",  put_index, tsch_queue_packet_count(addr), addr->u8[1], addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count());
+      //LOG_ERR("Put index: %d, nbr packets: %d for nbr %d  %d, total elements: %d\n",  put_index, tsch_queue_packet_count(addr), addr->u8[1], addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count());
       if (put_index != -1)
       {
         p = memb_alloc(&packet_memb);
@@ -402,8 +410,8 @@ tsch_queue_add_packet(const linkaddr_t *addr, uint8_t max_transmissions,
             /* Add to ringbuf (actual add committed through atomic operation) */
             n->tx_array[put_index] = p;
             ringbufindex_put(&n->tx_ringbuf);
-            LOG_DBG("packet is added put_index %u, packet %p\n",
-                    put_index, p);
+            // LOG_DBG("packet is added put_index %u, packet %p\n",
+            //         put_index, p);
             // printf("TSCH: added packet to queue with %u transmissions, put_index %u, packet %p, neighbor %p\n", max_transmissions, put_index, p, n);
             // leds_off(LEDS_GREEN);
             //++num_packets;
@@ -472,7 +480,7 @@ tsch_queue_remove_packet_from_queue(struct tsch_neighbor *n)
           //} else {
           //--num_packets;
         } //*/
-        LOG_ERR("Removed Packet at index %d for nbr %d\n", get_index, n->addr.u8[NODE_ID_INDEX]);
+        //LOG_ERR("Removed Packet at index %d for nbr %d\n", get_index, n->addr.u8[NODE_ID_INDEX]);
         return n->tx_array[get_index];
       }
       else

@@ -5,10 +5,11 @@
 #define MASTER_MSG_LENGTH 64
 
 #undef  TESTBED
-#define TESTBED TESTBED_COOJA
+//#define TESTBED TESTBED_COOJA
+#define TESTBED TESTBED_KIEL
 
 #undef NUM_COOJA_NODES
-#define NUM_COOJA_NODES 5
+#define NUM_COOJA_NODES 20
 
 #undef NBR_TABLE_CONF_MAX_NEIGHBORS
 #define NBR_TABLE_CONF_MAX_NEIGHBORS 16
@@ -29,8 +30,10 @@
 #define TSCH_CONF_FLOW_BASED_QUEUES          1
 #define TSCH_CONF_TTL_BASED_RETRANSMISSIONS  1
 //#define MASTER_TSCH_COORDINATOR 0x01
+//hohe last = node 12 oder 13  0x0C / 0x0D
+#define MASTER_TSCH_COORDINATOR 0x08
 
-//#define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_NONE
+#define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_DBG
 
 #include "net/master-routing/master-project-conf.h"
 

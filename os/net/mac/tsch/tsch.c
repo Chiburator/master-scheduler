@@ -82,7 +82,7 @@ uint8_t tsch_eb_active = 1;
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH"
-#define LOG_LEVEL LOG_LEVEL_ERR
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 #if TSCH_DEBUG_PRINT
 #include <stdio.h>
@@ -343,6 +343,7 @@ keepalive_packet_sent(void *ptr, int status, int transmissions)
     #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
       struct tsch_neighbor * time_source = tsch_queue_get_time_source();
       tsch_rank = time_source->rank + 1;
+      LOG_INFO("Increase rank to %d\n", tsch_rank);
     #endif
 
       tsch_join_priority = last_eb_nbr_jp + 1;
@@ -416,6 +417,7 @@ eb_input(struct input_packet *current_input)
   if (tsch_packet_parse_eb(current_input->payload, current_input->len,
                            &frame, &eb_ies, NULL, 1))
   {
+
     /* PAN ID check and authentication done at rx time */
 
     //TODO: This does not do what is says it does!!! 
@@ -469,6 +471,9 @@ eb_input(struct input_packet *current_input)
     }
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
 
+                    TSCH_LOG_ADD(tsch_log_message,
+                      snprintf(log->message, sizeof(log->message),
+                      "NBR is %d", frame.src_addr[NODE_ID_INDEX]));
     /* Did the EB come from our time source? */
     if (ts != NULL && linkaddr_cmp((linkaddr_t *)&frame.src_addr, &ts->addr))
     {
@@ -507,7 +512,7 @@ eb_input(struct input_packet *current_input)
         tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
         tsch_queue_update_time_source_rank(eb_ies.ie_rank);
         tsch_rank = eb_ies.ie_rank + 1;
-        LOG_ERR("Got rank %u from new src %u and my rank was %u. nbrs = %d\n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank, tsch_queue_count_nbr());
+        LOG_ERR("Got rank %u from new src %u and set my rank to %u. nbrs = %d\n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank, tsch_queue_count_nbr());
       }
       else{
         
@@ -617,10 +622,10 @@ tsch_tx_process_pending(void)
     struct tsch_packet *p = dequeued_array[dequeued_index];
     /* Put packet into packetbuf for packet_sent callback */
     queuebuf_to_packetbuf(p->qb);
-    LOG_INFO("packet sent to ");
-    LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    LOG_INFO_(", seqno %u, status %d, tx %d\n",
-              packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO), p->ret, p->transmissions);
+    // LOG_INFO("packet sent to ");
+    // LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
+    // LOG_INFO_(", seqno %u, status %d, tx %d\n",
+    //           packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO), p->ret, p->transmissions);
     mac_call_sent_callback(p->sent, p->ptr, p->ret, p->transmissions);
     /* Free packet queuebuf */
     tsch_queue_free_packet(p);
@@ -1074,8 +1079,6 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
           }
           else
           {
-            LOG_INFO("TSCH: enqueue EB packet %u %u\n",
-                     packetbuf_totlen(), packetbuf_hdrlen());
 #if TSCH_DEBUG_PRINT
             printf("TSCH: enqueue EB packet %u %u\n",
                    packetbuf_totlen(), packetbuf_hdrlen());
