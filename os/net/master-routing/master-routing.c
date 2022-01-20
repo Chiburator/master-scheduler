@@ -564,7 +564,13 @@ int calculate_etx_metric()
       nbr = tsch_queue_next_nbr(nbr);
       continue;
     }
-    // This could fail if last_eb = first_eb, but this is unlikely if the time set for the eb phase is not extremly short
+
+    // This could fail if last_eb = first_eb, e.G. realy rare reception of packets from far nodes
+    if(nbr->last_eb == nbr->first_eb)
+    {
+      continue;
+    }
+
     float etx_link = 1.0 / (1.0 - ((float)nbr->missed_ebs / (nbr->last_eb - nbr->first_eb)));
     int etx_link_int = (int)(etx_link * 100);
 
@@ -1289,7 +1295,7 @@ void init_master_routing(void)
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
     LOG_INFO("Time to run before convergcast = %i", ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000);
     //ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, master_install_schedule, NULL);
-    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * 60), master_install_schedule, NULL);
+    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * 120), master_install_schedule, NULL);
   #else
     sf[0] = tsch_schedule_add_slotframe(0, 1);
     tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);
