@@ -19,6 +19,16 @@
 
 PROCESS(serial_line_schedule_input, "Master scheduler serial line input");
 
+//Calculate the worst case package count = (Nodes * Schedule_size_per_node + universall config) / payload_size                    
+#define MAX_PACKETS_PER_SCHEDULE ((NUM_COOJA_NODES * (4*TSCH_SCHEDULE_MAX_LINKS + 2*MASTER_NUM_FLOWS + 3) + 5*MASTER_NUM_FLOWS + 2) / MASTER_MSG_LENGTH)
+
+#if MAX_PACKETS_PER_SCHEDULE % 32 != 0
+  int received_packets_as_bit_array[MAX_PACKETS_PER_SCHEDULE / 32];
+#else
+  int received_packets_as_bit_array[(MAX_PACKETS_PER_SCHEDULE / 32) + 1]; 
+#endif
+
+
 static masternet_schedule_loaded schedule_loaded_callback = NULL;
 
 uint8_t schedule_index;
@@ -353,4 +363,24 @@ uint8_t get_forward_dest(master_tsch_schedule_t* schedule, uint8_t flow)
 uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow)
 {
   return schedule->max_transmission[flow - 1];
+}
+
+void setBit(int k)
+{
+    received_packets_as_bit_array[k/32] |= 1 << (k%32);
+}
+
+void clearBit(int k)
+{
+    received_packets_as_bit_array[k/32] &= ~(1 << (k%32)); 
+}
+
+uint8_t isBitSet(int k)
+{
+    if ( (received_packets_as_bit_array[k/32] & (1 << (k%32) ))  ) 
+    {
+        return 1;
+    }else{
+        return 0;
+    }
 }

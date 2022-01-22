@@ -536,10 +536,7 @@ eb_input(struct input_packet *current_input)
         //case 4. In case enough beacons from a far neighbor are received, the metric could stay with a good etx-link quality
         //Therefore, the node will node change to other neighbors. Therefore switch if X cycles passed without a new EB
         uint8_t timesource_ebs_missing = cycles_since_last_timesource_eb > 10;
-        if(timesource_ebs_missing)
-        {
-          LOG_ERR("timesource_ebs_missing = %d \n", timesource_ebs_missing);
-        }
+
         //Online change during beacon phases allowed. otherwise metric gathering can break.
         if(tsch_change_time_source_active && nbr_is_not_timesource && (nbr_closer_to_cpan || nbr_has_better_link || timesource_ebs_missing))
         {

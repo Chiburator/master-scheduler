@@ -80,6 +80,8 @@ struct ieee802154_ies {
   uint16_t ie_sequence_number;
   uint8_t ie_rank;
   uint8_t ie_time_source;
+  uint8_t ie_schedule_version;
+  uint16_t ie_schedule_packets;
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   /* Payload Long MLME IEs */
   uint8_t ie_channel_hopping_sequence_id;
@@ -134,6 +136,10 @@ int frame80215e_create_ie_tsch_neighbor_discovery(uint8_t *buf, int len,
 int frame80215e_create_ie_tsch_rank(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 int frame80215e_create_ie_time_source(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
+int frame80215e_create_ie_schedule_version(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
+int frame80215e_create_ie_schedule_packets(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 

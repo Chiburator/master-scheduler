@@ -67,15 +67,6 @@
 #define LOG_MODULE "MASTER-R"
 #define LOG_LEVEL LOG_LEVEL_DBG
 
-//Calculate the worst case package count = (Nodes * Schedule_size_per_node + universall config) / payload_size                    
-#define MAX_PACKETS_PER_SCHEDULE ((NUM_COOJA_NODES * (4*TSCH_SCHEDULE_MAX_LINKS + 2*MASTER_NUM_FLOWS + 3) + 5*MASTER_NUM_FLOWS + 2) / MASTER_MSG_LENGTH)
-
-#if MAX_PACKETS_PER_SCHEDULE % 32 != 0
-  int received_packets_as_bit_array[MAX_PACKETS_PER_SCHEDULE / 32];
-#else
-  int received_packets_as_bit_array[(MAX_PACKETS_PER_SCHEDULE / 32) + 1]; 
-#endif
-
 /*Deployment node count*/
 #if TESTBED == TESTBED_COOJA
   static const uint8_t deployment_node_count = NUM_COOJA_NODES;

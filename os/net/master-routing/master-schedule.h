@@ -14,6 +14,8 @@
 
 PROCESS_NAME(serial_line_schedule_input);
 
+extern int received_packets_as_bit_array[];
+
 enum MessagePart{
   MESSAGE_BEGIN,
   MESSAGE_CONTINUE,
@@ -71,4 +73,7 @@ struct master_tsch_schedule_t* get_own_schedule();
 uint8_t get_forward_dest_by_slotframe(master_tsch_schedule_t* schedule, uint8_t link_idx);
 uint8_t get_forward_dest(master_tsch_schedule_t* schedule, uint8_t flow);
 uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow);
+void setBit(int k);
+void clearBit(int k);
+uint8_t isBitSet(int k);
 #endif /* MASTER_SCHEDULE_H */

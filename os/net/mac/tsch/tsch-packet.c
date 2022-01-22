@@ -65,6 +65,8 @@
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 uint16_t sequence_number = 0;
 uint8_t tsch_rank = 255;
+uint8_t schedule_version = 0;
+uint16_t schedule_packets = 0;
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 /*
@@ -309,6 +311,8 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
     ies.ie_time_source = time_source->addr.u8[NODE_ID_INDEX];
   }
 
+  ies.ie_schedule_version = schedule_version;
+  ies.ie_schedule_packets = schedule_packets;
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
   p = packetbuf_dataptr();
@@ -377,6 +381,26 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   ie_len = frame80215e_create_ie_time_source(p,
                                              packetbuf_remaininglen(),
                                              &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+  p += ie_len;
+  packetbuf_set_datalen(packetbuf_datalen() + ie_len);
+  
+  ie_len = frame80215e_create_ie_schedule_version(p,
+                                                  packetbuf_remaininglen(),
+                                                  &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+  p += ie_len;
+  packetbuf_set_datalen(packetbuf_datalen() + ie_len);
+
+  ie_len = frame80215e_create_ie_schedule_packets(p,
+                                                  packetbuf_remaininglen(),
+                                                  &ies);
   if (ie_len < 0)
   {
     return -1;
