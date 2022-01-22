@@ -64,8 +64,9 @@
 #include "net/mac/mac-sequence.h"
 #include "lib/random.h"
 
-uint16_t counter_test = 0;
 uint8_t tsch_eb_active = 1;
+uint8_t tsch_change_time_source_active = 1;
+uint8_t cycles_since_last_timesource_eb = 0;
 
 #if UIP_CONF_IPV6_RPL
 #include "net/mac/tsch/tsch-rpl.h"
@@ -99,7 +100,7 @@ void uip_ds6_link_neighbor_callback(int status, int numtx);
 
 /* Use to perform neighbor discovery based EB packets sent */
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src, const uint16_t *seq_nr);
+extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src);
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 //#ifdef COMPETITION_RUN
@@ -471,9 +472,9 @@ eb_input(struct input_packet *current_input)
     }
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
 
-                    TSCH_LOG_ADD(tsch_log_message,
-                      snprintf(log->message, sizeof(log->message),
-                      "NBR is %d", frame.src_addr[NODE_ID_INDEX]));
+                    // TSCH_LOG_ADD(tsch_log_message,
+                    //   snprintf(log->message, sizeof(log->message),
+                    //   "NBR is %d", frame.src_addr[NODE_ID_INDEX]));
     /* Did the EB come from our time source? */
     if (ts != NULL && linkaddr_cmp((linkaddr_t *)&frame.src_addr, &ts->addr))
     {
@@ -507,34 +508,78 @@ eb_input(struct input_packet *current_input)
       }
     }else{
     #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-      if(eb_ies.ie_rank + 1 < tsch_rank)
+      struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
+      if((tsch_is_coordinator == 0) && (n != NULL) && (n->last_eb - n->first_eb != 0))
       {
-        tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
-        tsch_queue_update_time_source_rank(eb_ies.ie_rank);
-        tsch_rank = eb_ies.ie_rank + 1;
-        LOG_ERR("Got rank %u from new src %u and set my rank to %u. nbrs = %d\n", eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], tsch_rank, tsch_queue_count_nbr());
-      }
-      else{
-        
-        struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
-        if(n == NULL)
+        int current_etx_link = 10 * (1.0 / (1.0 - ((float)n->missed_ebs / (n->last_eb - n->first_eb))));
+        //LOG_INFO("current etx_link =%d, mb %d; lb %d; fb %d\n", current_etx_link, n->missed_ebs, n->last_eb, n->first_eb);
+        if(current_etx_link % 10 > 0)
         {
-          //LOG_ERR("NULL PTR when adding a nbr. NBR size = %d from %d for %d\n", tsch_queue_count_nbr(), TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, frame.src_addr[NODE_ID_INDEX]);
+          current_etx_link = (current_etx_link / 10) + 1;
         }else{
-          tsch_queue_update_neighbour_rank_and_time_source(&n->addr, eb_ies.ie_rank, eb_ies.ie_time_source);
-          //LOG_ERR("Got neighbour %i, with rank %i and time source %i\n", n->addr.u8[NODE_ID_INDEX], n->rank, n->time_source);
+          current_etx_link = (current_etx_link / 10);
+        }
+        //case 1. a beacon from a node with a better rank arrives. Only take this node as a time source if the etx_lin is not horrible
+        //This will remove cases where a beacon rarely arrives at a far node
+        //The last && makes sure that we dont switch a good link for a bad link just because we are 1 node closer to the cpan.
+        //LOG_INFO("current etx_link =%d vs time source = %d\n", current_etx_link, tsch_queue_get_time_source()->etx_link);
+        uint8_t nbr_closer_to_cpan = (eb_ies.ie_rank + 1 < tsch_rank) && 
+                                     (current_etx_link >= 1) && (current_etx_link <= 5);
+                                     //current_etx_link <= tsch_queue_get_time_source()->etx_link + (tsch_rank - eb_ies.ie_rank);
+        //case 2. a beacons arrives from a neighbor with worse rank but the etx_link is good.
+        uint8_t nbr_has_better_link = (eb_ies.ie_rank == tsch_rank) && 
+                                      (current_etx_link >= 1) && (current_etx_link <= 5) && 
+                                      ((tsch_queue_get_time_source()->etx_link < 1) || (tsch_queue_get_time_source()->etx_link > 5));
+        //LOG_INFO("nbr_closer_to_cpan=%d and nbr_has_better_link = %d\n", nbr_closer_to_cpan, nbr_has_better_link);
+        //case 3. Do not change a timesource to a timesource
+        uint8_t nbr_is_not_timesource = (linkaddr_cmp(&n->addr, &tsch_queue_get_time_source()->addr) == 0);
+        //case 4. In case enough beacons from a far neighbor are received, the metric could stay with a good etx-link quality
+        //Therefore, the node will node change to other neighbors. Therefore switch if X cycles passed without a new EB
+        uint8_t timesource_ebs_missing = cycles_since_last_timesource_eb > 10;
+        if(timesource_ebs_missing)
+        {
+          LOG_ERR("timesource_ebs_missing = %d \n", timesource_ebs_missing);
+        }
+        //Online change during beacon phases allowed. otherwise metric gathering can break.
+        if(tsch_change_time_source_active && nbr_is_not_timesource && (nbr_closer_to_cpan || nbr_has_better_link || timesource_ebs_missing))
+        {
+          LOG_ERR("Got rank %u from src %u. link old vs new %d - %d . Switch from %d and set my rank to %u. nbrs = %d\n", 
+          eb_ies.ie_rank, frame.src_addr[NODE_ID_INDEX], n->etx_link, tsch_queue_get_time_source()->etx_link, tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], eb_ies.ie_rank + 1, tsch_queue_count_nbr());
+          tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
+          tsch_rank = eb_ies.ie_rank + 1;
+          cycles_since_last_timesource_eb = 0;
+        }else{
+          //LOG_ERR("Got rank %d from src %d. Update to etx-link %d\n", 
+          //eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], n->etx_link);
+        }
+        n->rank = eb_ies.ie_rank;
+        n->time_source = eb_ies.ie_time_source;
+        n->etx_link = current_etx_link;
+
+        //reset the counter for the last received packet from our time source everytime a beacon is received
+        if(linkaddr_cmp(&n->addr, &tsch_queue_get_time_source()->addr))
+        {
+          cycles_since_last_timesource_eb = 0;
+        }
+
+      }else{
+        n->rank = eb_ies.ie_rank;
+        n->time_source = eb_ies.ie_time_source;
+        if(frame.src_addr[NODE_ID_INDEX] == 14)
+        {
+          LOG_ERR("NODE 14 has %d as timesource \n", n->time_source);
         }
       }
     #endif
     }
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-    neighbor_discovery_input(&eb_ies.ie_sequence_number, (linkaddr_t *)&frame.src_addr, &sequence_number);
+    neighbor_discovery_input(&eb_ies.ie_sequence_number, (linkaddr_t *)&frame.src_addr);
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   }
   LOG_TRACE_RETURN("eb_input \n");
 }
 /*---------------------------------------------------------------------------*/
-extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src, const uint16_t *seq_nr)
+extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src)
 {
   struct tsch_neighbor* nbr = tsch_queue_get_nbr(src);
 
@@ -545,7 +590,6 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
   }
 
   //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
-  //Nodes start at 1 and array at 0 -> node-1
   if(nbr->first_eb == 0)
   {
     nbr->first_eb = *data;
@@ -556,7 +600,10 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
   nbr->missed_ebs += (*data - nbr->last_eb) - 1;
   nbr->last_eb = *data;
 
-  //LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], *data);
+  if(linkaddr_node_addr.u8[NODE_ID_INDEX] == 8)
+  {
+    LOG_ERR("EBReceived;%i;%i;%i\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], *data);
+  }
 }
 /*---------------------------------------------------------------------------*/
 /* Process pending input packet(s) */
@@ -844,6 +891,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
       tsch_queue_update_time_source_rank(ies.ie_rank);
       tsch_rank = ies.ie_rank + 1;
       LOG_ERR("Got rank %u from src %d and set my rank to %u, nbrs = %d\n", ies.ie_rank, frame.src_addr[NODE_ID_INDEX], tsch_rank, tsch_queue_count_nbr());
+      neighbor_discovery_input(&ies.ie_sequence_number, (linkaddr_t *)&frame.src_addr);
     #endif
 
       /* Set PANID */
@@ -1062,6 +1110,8 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
       if (tsch_queue_packet_count(&tsch_eb_address) == 0)
       {
         leds_toggle(LEDS_RED);
+
+  
         uint8_t hdr_len = 0;
         uint8_t tsch_sync_ie_offset;
         /* Prepare the EB packet and schedule it to be sent */
@@ -1086,6 +1136,7 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
 #endif /* TSCH_DEBUG_PRINT */
             p->tsch_sync_ie_offset = tsch_sync_ie_offset;
             p->header_len = hdr_len;
+            cycles_since_last_timesource_eb++;
           }
         }
         leds_toggle(LEDS_RED);

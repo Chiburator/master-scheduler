@@ -521,13 +521,14 @@ int set_next_neighbour()
   do
   {
     next_dest = tsch_queue_next_nbr(next_dest);
-    LOG_ERR("nbr %d with source %d \n", next_dest->addr.u8[NODE_ID_INDEX], next_dest->time_source);
+
     if (next_dest == NULL)
     {
       return 0;
     }
+    LOG_ERR("nbr %d with source %d, my id %d\n", next_dest->addr.u8[NODE_ID_INDEX], next_dest->time_source, node_id);
   } while (next_dest->time_source != node_id);
-  //LOG_ERR("Selecting Neighbor %u", next_dest->addr.u8[NODE_ID_INDEX]);
+
   return 1;
 }
 
@@ -556,18 +557,12 @@ int calculate_etx_metric()
 {
   struct tsch_neighbor *nbr = tsch_queue_first_nbr();
   int pos = 0;
-  do
+  while (nbr != NULL)
   {
-    // Skip virtaul eb and broadcast neihbor
-    if (linkaddr_cmp(&tsch_eb_address, &nbr->addr) || linkaddr_cmp(&tsch_broadcast_address, &nbr->addr))
-    {
-      nbr = tsch_queue_next_nbr(nbr);
-      continue;
-    }
-
     // This could fail if last_eb = first_eb, e.G. realy rare reception of packets from far nodes
     if(nbr->last_eb == nbr->first_eb)
     {
+      nbr = tsch_queue_next_nbr(nbr);
       continue;
     }
 
@@ -588,8 +583,8 @@ int calculate_etx_metric()
     // LOG_INFO("ETX-Links calculate for %u, %u\n", etx_links[pos], etx_links[pos+1]);
     pos += 2;
     nbr = tsch_queue_next_nbr(nbr);
-  } while (nbr != NULL);
- 
+  } 
+  //LOG_ERR("DONE \n");
   return pos; 
 }
 
@@ -599,7 +594,19 @@ void prepare_etx_metric()
   mrp.flow_number = node_id;
   mrp.packet_number = ++own_packet_number;
   int command = CM_ETX_METRIC;
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   int len = calculate_etx_metric();
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   memcpy(&(mrp.data), &command, sizeof(uint8_t));
   memcpy(&(mrp.data[1]), etx_links, len);
   masternet_len = minimal_routing_packet_size + sizeof(uint8_t) + len;
@@ -631,7 +638,7 @@ master_install_schedule(void *ptr)
   tsch_eb_active = 0;
   LOG_ERR("EB deactivated\n");
   LOG_INFO("Starting convergcast\n");
-  LOG_ERR("My time src is %d and nbr size is %d with %d flows\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, MASTER_NUM_FLOWS);
+
   if(tsch_is_coordinator)
   {
     int len = calculate_etx_metric();
@@ -639,9 +646,16 @@ master_install_schedule(void *ptr)
     metric_received[node_id - 1] = 1;
     current_state = ST_POLL_NEIGHBOUR;
     LOG_INFO("Have %d nbrs\n", tsch_queue_count_nbr());
+
     next_dest = tsch_queue_first_nbr();
+    while (next_dest != NULL && next_dest->time_source != node_id)
+    {
+      next_dest = tsch_queue_next_nbr(next_dest);
+    }
+    
     handle_convergcast(0);
   }else{
+    LOG_ERR("My time src is %d and nbr size is %d with %d flows\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, MASTER_NUM_FLOWS);
     if (current_state == ST_BEGIN_GATHER_METRIC)
     {
       LOG_ERR("Starting prepare metric\n");
@@ -651,6 +665,21 @@ master_install_schedule(void *ptr)
 
   started = 1;
   LOG_INFO("started\n");
+}
+
+/*Before starting metric gathering, leave enough time for the network to propagate all time source changes through beacons
+*/
+static void finalize_neighbor_discovery(void *ptr)
+{
+  LOG_ERR("neighbor changing deactivated. Start gathering soon\n");
+  tsch_change_time_source_active = 0;
+  uint8_t cycles = 20; //How many beacon cycles should be left before gathering starts
+  #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+    /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
+  ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * cycles) / 1000, master_install_schedule, NULL);
+  #else
+  ctimer_set(&install_schedule_timer, MASTER_INIT_PERIOD, master_install_schedule, NULL);
+  #endif
 }
 /*---------------------------------------------------------------------------*/
 void master_routing_set_input_callback(master_routing_input_callback callback)
@@ -844,7 +873,7 @@ void master_routing_output(void *data, int ret, int transmissions)
   LOG_INFO("master callback for sent packets \n");
 
   packet_data_t *packet_data = (packet_data_t *)data;
-  LOG_ERR("Current state: %d with command %d\n", current_state, packet_data->command);
+  LOG_ERR("Current state: %d with command %d and return value %d\n", current_state, packet_data->command, ret);
 
   if(packet_data->command == CM_DATA || packet_data->command == CM_NO_COMMAND || packet_data->command == CM_END)
   {
@@ -911,6 +940,17 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           int finished_nodes = 0;
           char test[100];
           int offset = 0;
+        #if TESTBED == TESTBED_KIEL
+          for(i = 0; i < deployment_node_count + 1; i++)
+          {
+            if(metric_received[i] == 1)
+            {
+              finished_nodes++;
+            }else{
+             offset += sprintf(&test[offset], "%i, ", i +1);
+            }
+          }
+        #else
           for(i = 0; i < deployment_node_count; i++)
           {
             if(metric_received[i] == 1)
@@ -919,8 +959,9 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
             }else{
              offset += sprintf(&test[offset], "%i, ", i +1);
             }
-            
           }
+        #endif
+
           LOG_ERR("Missing metric from %s\n", test);
           if(finished_nodes == deployment_node_count)
           {
@@ -977,6 +1018,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           last_schedule_packet_number_received = mrp.data[1];
           tsch_eb_active = 0;
           current_state = ST_SCHEDULE_INSTALLED;
+          tsch_change_time_source_active = 1;
           unpack_packet(len - minimal_routing_packet_size);
           schedule_complete = 1;
           #if TSCH_TTL_BASED_RETRANSMISSIONS
@@ -1294,8 +1336,8 @@ void init_master_routing(void)
     tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, node_id - 1, 0);
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
     LOG_INFO("Time to run before convergcast = %i", ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000);
-    //ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, master_install_schedule, NULL);
-    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * 120), master_install_schedule, NULL);
+    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, finalize_neighbor_discovery, NULL);
+    //ctimer_set(&install_schedule_timer, (CLOCK_SECOND * 40), finalize_neighbor_discovery, NULL);
   #else
     sf[0] = tsch_schedule_add_slotframe(0, 1);
     tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);

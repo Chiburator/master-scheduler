@@ -219,8 +219,9 @@ void tsch_set_pan_secured(int enable);
 /* Set the node rank of the node */
 void tsch_set_rank(int rank);
 
-extern uint16_t counter_test;
 extern uint8_t tsch_eb_active;
+extern uint8_t tsch_change_time_source_active;
+extern uint8_t cycles_since_last_timesource_eb; //This variable is incremented each cycle (when a node sends an eb) and reset once we receive an eb from the time source
 
 #endif /* __TSCH_H__ */
 /** @} */

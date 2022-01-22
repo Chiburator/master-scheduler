@@ -39,6 +39,17 @@ PROCESS_THREAD(master_unicast_process, ev, data)
 
   PROCESS_BEGIN();
 
+  // GPIO_SET_OUTPUT(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
+  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   /* Initialize Master */
   init_master_routing();
   master_routing_set_input_callback(input_callback);
