@@ -67,6 +67,15 @@
 #define LOG_MODULE "MASTER-R"
 #define LOG_LEVEL LOG_LEVEL_DBG
 
+#define WRITE32(buf, val) \
+  do { ((uint8_t *)(buf))[0] = (val) & 0xff; \
+       ((uint8_t *)(buf))[1] = ((val) >> 8) & 0xff; \
+       ((uint8_t *)(buf))[2] = ((val) >> 16) & 0xff; \
+       ((uint8_t *)(buf))[3] = ((val) >> 24) & 0xff;} while(0);
+
+#define READ32(buf, var) \
+  (var) = ((uint8_t *)(buf))[0] | ((uint8_t *)(buf))[1] << 8 | ((uint8_t *)(buf))[2] << 16 | ((uint8_t *)(buf))[3] << 24
+
 /*Deployment node count*/
 #if TESTBED == TESTBED_COOJA
   static const uint8_t deployment_node_count = NUM_COOJA_NODES;
@@ -238,9 +247,29 @@ void reset_nbr_metric_received()
 uint8_t fill_packet(int bytes_in_packet)
 {
   printf("Start writting at: %d\n", bytes_in_packet);
+  //TODO:: if the schedule is already installed, dont save the time. Also only CPAN should save the time?
   if(finished)
   {
-      return 1;
+    mrp.data[0] = CM_SCHEDULE_END;
+    sent_packet_configuration.command = CM_SCHEDULE_END;
+
+    struct tsch_asn_t schedule_start;
+    schedule_start.ls4b = tsch_current_asn.ls4b;
+    schedule_start.ms1b = tsch_current_asn.ms1b;
+
+    //10 cycles * node amount
+    TSCH_ASN_INC(schedule_start, 10*5);
+
+    mrp.data[bytes_in_packet] = tsch_current_asn.ms1b;
+    bytes_in_packet++;
+    WRITE32(&mrp.data[bytes_in_packet], tsch_current_asn.ls4b);
+    bytes_in_packet += 4;
+
+    mrp.data[bytes_in_packet] = schedule_start.ms1b;
+    bytes_in_packet++;
+    WRITE32(&mrp.data[bytes_in_packet], schedule_start.ls4b);
+    bytes_in_packet += 4;
+    return 1;
   }
   uint8_t schedule_finished = 0;
 
@@ -266,6 +295,7 @@ uint8_t fill_packet(int bytes_in_packet)
     mrp.data[bytes_in_packet + 1] = schedule_len & 255; 
     bytes_in_packet += 2;
 
+    //The first cas is where a whole schedule for a node fits into the packet. The second case i only a part of the schedule is in this packet
     if((MASTER_MSG_LENGTH - bytes_in_packet) >= schedule_len)
     {
 
@@ -290,19 +320,50 @@ uint8_t fill_packet(int bytes_in_packet)
     }
   }
   printf("Packet contains out\n");
-  masternet_len = bytes_in_packet + minimal_routing_packet_size;
-  //printf("masternet len = %d \n", masternet_len);
-  //printf("last_byte_filled = %d \n", last_byte_filled);
-  //printf("remaining_len_last_packet = %d \n", remaining_len_last_packet);
-  //printf("last_schedule_id_started= %d \n", last_schedule_id_started);
-  //Send schedule and start again later.
 
+  //Check if we finished writing the whole schedule with this packet.
   if(last_schedule_id_started == deployment_node_count && schedule_finished)
   {
     finished = 1;
+  }
+
+  uint8_t done = 0;
+  //The last packet contains 2 asn. 
+  //1. asn at this moment when the packet is created
+  //2. asn offset from this moment when the network should switch to the new schedule.
+  if(finished && ((MASTER_MSG_LENGTH - bytes_in_packet) >= 10))
+  {
     mrp.data[0] = CM_SCHEDULE_END;
     sent_packet_configuration.command = CM_SCHEDULE_END;
+
+    struct tsch_asn_t schedule_start;
+    schedule_start.ls4b = tsch_current_asn.ls4b;
+    schedule_start.ms1b = tsch_current_asn.ms1b;
+
+    //10 cycles * node amount
+    TSCH_ASN_INC(schedule_start, 10 * 5);
+
+    mrp.data[bytes_in_packet] = tsch_current_asn.ms1b;
+    bytes_in_packet++;
+    WRITE32(&mrp.data[bytes_in_packet], tsch_current_asn.ls4b);
+    bytes_in_packet += 4;
+
+    mrp.data[bytes_in_packet] = schedule_start.ms1b;
+    bytes_in_packet++;
+    WRITE32(&mrp.data[bytes_in_packet], schedule_start.ls4b);
+    bytes_in_packet += 4;
+
+    if(tsch_is_coordinator)
+    {
+      //The time passed since the asn for the start was calculated
+      LOG_ERR("time passed since the schedule was calculated %d  and offset in asn when to start %d (time %d ms)\n", tsch_current_asn.ls4b, schedule_start.ls4b, (CLOCK_SECOND * schedule_start.ls4b * deployment_node_count) / 1000);
+      //TODO:: calculate start of installation for the schedule. 
+      ctimer_set(&install_schedule_timer, (CLOCK_SECOND * schedule_start.ls4b * deployment_node_count) / 1000, install_schedule, NULL);
+    }
+    done = 1;
   }
+
+  masternet_len = bytes_in_packet + minimal_routing_packet_size;
 
   #if TSCH_TTL_BASED_RETRANSMISSIONS
   set_ttl_retransmissions();
@@ -310,19 +371,15 @@ uint8_t fill_packet(int bytes_in_packet)
 
   NETSTACK_NETWORK.output(&tsch_broadcast_address); //TODO:: find out how to send this via broadcast. deactivate EB again?
 
-  if(finished)
-  {
-    return 1;
-  }else{
-    return 0;
-  }
+  return done;
 }
 
 void unpack_packet(int packet_len)
 {
   //check if this is the first packet
+  uint8_t unpack_asns = 0;
   int unpack_at_index = 2; //0 = command, 1 = packet number, >= 2 data
-  printf("Unpack packt of len: %d  \n", packet_len);
+  printf("Unpack packt of len: %d \n", packet_len);
   if(mrp.data[1] == 1)
   {
     schedule_config.schedule_length = mrp.data[2];
@@ -341,6 +398,11 @@ void unpack_packet(int packet_len)
   unpack_at_index += 2;
   //printf("unpacked bytes %d\n", unpack_at_index);
   
+  if(mrp.data[0] == CM_SCHEDULE_END)
+  {
+    packet_len = packet_len - 10;
+    unpack_asns = 1;
+  }
  
   while(unpack_at_index < packet_len)
   {
@@ -365,6 +427,30 @@ void unpack_packet(int packet_len)
       printf("Packet contains full schedule to unpack for schedule %d. start from %d to %d (totall %d)\n", schedule_index, unpack_at_index, unpack_at_index + packet_len - unpack_at_index, packet_len - unpack_at_index);
       unpack_at_index += packet_len - unpack_at_index;
     }
+  }
+
+  if(unpack_asns == 1)
+  {
+    LOG_ERR("Packet contains asn\n");
+
+    struct tsch_asn_t asn_on_creation;
+    asn_on_creation.ms1b = mrp.data[unpack_at_index];
+    unpack_at_index++;
+    READ32(&mrp.data[unpack_at_index], asn_on_creation.ls4b);
+    unpack_at_index += 4;
+
+    struct tsch_asn_t schedule_start;
+    schedule_start.ms1b = mrp.data[unpack_at_index];
+    unpack_at_index++;
+    READ32(&mrp.data[unpack_at_index], schedule_start.ls4b);
+    unpack_at_index += 4;
+    //The time passed since the asn for the start was calculated
+    int time_passed = TSCH_ASN_DIFF(tsch_current_asn, asn_on_creation);
+    asn_on_creation.ls4b = time_passed;
+    int start_offset = TSCH_ASN_DIFF(schedule_start, asn_on_creation);
+    LOG_ERR("time passed since the schedule was calculated %d  and offset in asn when to start %d (time %d ms)\n", time_passed, start_offset, (CLOCK_SECOND * start_offset * deployment_node_count) / 1000);
+    //TODO:: calculate start of installation for the schedule. 
+    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * start_offset * deployment_node_count) / 1000, install_schedule, NULL);
   }
 }
 
@@ -402,7 +488,7 @@ void master_schedule_loaded_callback()
   fill_packet(packet_bytes_filled);
 }
 
-static void install_schedule(){
+void install_schedule(){
   LOG_INFO("Install schedule now\n");
   int i;
   //TODO:: This has to be changed later
@@ -837,23 +923,27 @@ void handle_divergcast_callback(packet_data_t *packet_data)
       }
     }
 
-    if(packet_data->command == CM_SCHEDULE_END)
-    {
-      LOG_INFO("Callback SCHEDULE END. Start Installing\n");
-      install_schedule();
-      reset_nbr_metric_received();
-    }
+    // if(packet_data->command == CM_SCHEDULE_END)
+    // {
+    //   LOG_INFO("Callback SCHEDULE END. Start Installing\n");
+
+    //   install_schedule();
+    //   reset_nbr_metric_received();
+    // }
   }else{
 
-    if(schedule_complete == 0)
-      return;
+    //TODO:: later
+    // if(schedule_complete == 0)
+    // {
 
-    if(packet_data->command == CM_SCHEDULE_END)
-    {
-      LOG_INFO("Callback SCHEDULE END. Start Installing\n");
-      install_schedule();
-      reset_nbr_metric_received();
-    }
+    // }
+
+    // if(schedule_complete == 0 && is_configured == 0)
+    // {
+    //   LOG_INFO("Callback SCHEDULE END. Start Installing\n");
+    //   install_schedule();
+    //   reset_nbr_metric_received();
+    // }
   }
 }
 
@@ -987,12 +1077,16 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           sent_packet_configuration.command = CM_SCHEDULE;
           masternet_len = len;
           last_schedule_packet_number_received = mrp.data[1];
+          //deactive enhanced beacons during metric distribution
           tsch_eb_active = 0;
           current_state = ST_DIST_SCHEDULE;
+          //Unpack into the schedule structure
           unpack_packet(len - minimal_routing_packet_size);       
           #if TSCH_TTL_BASED_RETRANSMISSIONS
           set_ttl_retransmissions();
           #endif
+          //Mark the packet as received in the bit-vector
+          setBit(mrp.packet_number);
           NETSTACK_NETWORK.output(&tsch_broadcast_address);
         }else{
           LOG_ERR("Skip schedule packet %d\n", mrp.data[1]);
@@ -1010,6 +1104,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           tsch_eb_active = 0;
           current_state = ST_SCHEDULE_INSTALLED;
           tsch_change_time_source_active = 1;
+          setBit(mrp.packet_number);
           unpack_packet(len - minimal_routing_packet_size);
           schedule_complete = 1;
           #if TSCH_TTL_BASED_RETRANSMISSIONS

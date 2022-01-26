@@ -115,6 +115,8 @@ int master_routing_sendto(const void *data, uint16_t datalen, uint8_t flow);
 
 void init_master_routing(void);
 
+void install_schedule();
+
 #endif /* MASTER_ROUTING_H */
 
 /** @} */
