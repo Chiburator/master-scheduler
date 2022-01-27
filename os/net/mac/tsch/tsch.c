@@ -199,11 +199,19 @@ PROCESS(tsch_process, "main process");
 PROCESS(tsch_send_eb_process, "send EB process");
 PROCESS(tsch_pending_events_process, "pending events process");
 
+static master_routing_schedule_difference_callback schedule_difference_callback = NULL;
+
 /* Other function prototypes */
 static void packet_input(void);
 
 /* Getters and setters */
-
+/*---------------------------------------------------------------------------*/
+void tsch_set_schedule_difference_callback(master_routing_schedule_difference_callback callback)
+{
+  LOG_TRACE("masternet_set_input_callback \n");
+  schedule_difference_callback = callback;
+  LOG_TRACE_RETURN("masternet_set_input_callback \n");
+}
 /*---------------------------------------------------------------------------*/
 void tsch_set_coordinator(int enable)
 {
@@ -571,6 +579,10 @@ eb_input(struct input_packet *current_input)
     }
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     neighbor_discovery_input(&eb_ies.ie_sequence_number, (linkaddr_t *)&frame.src_addr);
+    if(eb_ies.ie_schedule_version != schedule_version)
+    {
+      schedule_difference_callback(eb_ies.ie_schedule_version, eb_ies.ie_schedule_packets);
+    }
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   }
   LOG_TRACE_RETURN("eb_input \n");
@@ -594,8 +606,21 @@ extern void neighbor_discovery_input(const uint16_t *data, const linkaddr_t *src
     return;
   }
 
+  if(nbr->addr.u8[NODE_ID_INDEX] == 2 && linkaddr_node_addr.u8[NODE_ID_INDEX] == 16)
+  {
+    LOG_ERR("metric update first %d, last %d, new packet %d and missed %d (new missed %d)", nbr->first_eb, nbr->last_eb, *data, nbr->missed_ebs, nbr->missed_ebs + (*data - nbr->last_eb) - 1);
+    printf(" etx now is %d \n", (int) (10 * (1.0 / (1.0 - ((float)nbr->missed_ebs / (nbr->last_eb - nbr->first_eb))))));
+  }
+
+  if(nbr->addr.u8[NODE_ID_INDEX] == 16 && linkaddr_node_addr.u8[NODE_ID_INDEX] == 2)
+  {
+    LOG_ERR("metric update first %d, last %d, new packet %d and missed %d (new missed %d)", nbr->first_eb, nbr->last_eb, *data, nbr->missed_ebs, nbr->missed_ebs + (*data - nbr->last_eb) - 1);
+    printf(" etx now is %d \n", (int) (10 * (1.0 / (1.0 - ((float)nbr->missed_ebs / (nbr->last_eb - nbr->first_eb))))));
+  }
+
   nbr->missed_ebs += (*data - nbr->last_eb) - 1;
   nbr->last_eb = *data;
+
 
   if(linkaddr_node_addr.u8[NODE_ID_INDEX] == 8)
   {
@@ -1123,6 +1148,9 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
 #if TSCH_DEBUG_PRINT
             printf("! could not enqueue EB packet\n");
 #endif /* TSCH_DEBUG_PRINT */
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+            sequence_number--;
+#endif
           }
           else
           {
@@ -1260,7 +1288,6 @@ tsch_init(void)
 static void
 send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 {
-  LOG_TRACE("send_packet \n");
   //printf("add packet to queue!\n");
   int ret = MAC_TX_DEFERRED;
   int hdr_len = 0;
@@ -1284,7 +1311,6 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     ret = MAC_TX_ERR;
     //In master-net no callback is configured
     mac_call_sent_callback(sent, ptr, ret, 1);
-    LOG_TRACE_RETURN("send_packet \n");
     return;
   }
 
@@ -1335,7 +1361,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES //TODO TODOLIV: why?
   if (max_transmissions == 0)
   {
-    LOG_TRACE_RETURN("send_packet \n");
+    LOG_ERR("smax transmission 0\n");
     return; // skip if no transmissions left
   }
   flow_addr.u8[1] = (uint8_t)packetbuf_attr(PACKETBUF_ATTR_FLOW_NUMBER);
@@ -1399,7 +1425,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
-            LOG_ERR("Add to Nbr addr\n");
+      LOG_ERR("Add to Nbr addr. Queue packets ? %d\n", tsch_queue_global_packet_count());
     }
 #else
     //Create a tsch_packet from the packetbuffer and add it to queue
@@ -1409,7 +1435,6 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 #endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */
     if (p == NULL)
     {
-      LOG_ERR("! can't send packet to ");
       printf("! can't send packet\n"); //TODOLIV: remove
       LOG_ERR_LLADDR(addr);
       //LOG_ERR_(" with seqno %u, queue %u %u\n",
@@ -1429,6 +1454,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
   }
   if (ret != MAC_TX_DEFERRED)
   {
+    LOG_ERR("DEREFERRED\n");
     mac_call_sent_callback(sent, ptr, ret, 1);
   }
   LOG_TRACE_RETURN("send_packet \n");

@@ -206,6 +206,18 @@ extern const struct mac_driver tschmac_driver;
 
 /********** Functions *********/
 
+/**
+ * Function prototype for MasterRouting callback on different schedule
+*/
+typedef void (* master_routing_schedule_difference_callback)(uint8_t schedule_version, uint16_t schedule_packets);
+
+/**
+ * Set input callback for MasterRouting
+ *
+ * \param callback The input callback
+*/
+void tsch_set_schedule_difference_callback(master_routing_schedule_difference_callback callback);
+
 /* The the TSCH join priority */
 void tsch_set_join_priority(uint8_t jp);
 /* The period at which EBs are sent */

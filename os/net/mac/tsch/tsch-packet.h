@@ -95,6 +95,8 @@ by default, useful in case of duplicate seqno */
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 extern uint16_t sequence_number;
 extern uint8_t tsch_rank;
+extern uint8_t schedule_version;
+extern uint16_t schedule_packets;
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 /********** Functions *********/

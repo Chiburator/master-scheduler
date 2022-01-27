@@ -332,7 +332,6 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
         break;
       default:
         LOG_ERR("dont know messagepart %d \n", message_prefix);
-        show_bytes();
         break;
       }
       LOG_ERR("received data. Read %d, total bytes written now %d\n", total_bytes_written - current_bytes, total_bytes_written);

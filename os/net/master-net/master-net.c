@@ -115,7 +115,6 @@ masternet_set_config_callback(masternet_config_callback callback)
 static uint8_t
 output(const linkaddr_t *dest)
 {
-  LOG_TRACE("output \n");
   int framer_hdrlen;
   int max_payload;
   //command[0] = 0;

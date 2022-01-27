@@ -92,7 +92,7 @@
 #endif
 
 #define LOG_MODULE "TSCH-SlotOperation"
-#define LOG_LEVEL LOG_LEVEL_NONE
+#define LOG_LEVEL LOG_LEVEL_INFO
 
 /* Check if TSCH_MAX_INCOMING_PACKETS is power of two */
 #if (TSCH_MAX_INCOMING_PACKETS & (TSCH_MAX_INCOMING_PACKETS - 1)) != 0
@@ -132,6 +132,8 @@
 #else
 #define RTIMER_GUARD 2u
 #endif
+
+int test = 0;
 
 enum tsch_radio_state_on_cmd {
   TSCH_RADIO_CMD_ON_START_OF_TIMESLOT,
@@ -316,15 +318,16 @@ tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_
   if(missed) {
     TSCH_LOG_ADD(tsch_log_message,
                 snprintf(log->message, sizeof(log->message),
-                    "!dl-miss %s %d %d",
-                        str, (int)(now-ref_time), (int)offset);
+                    "!dl-miss %s %d %d %d",
+                        str, (int)(now-ref_time), (int)offset, (int) now);
     );
+    test = 1;
     //LOG_TRACE("tsch_schedule_slot_operation 0\n");
     return 0;
   }
   //TODO:: use TSCH_LOG_ADD to make a trace without reducing performance?
   //TSCH_LOG_ADD("slot start = %i and offset = %i \n", ref_time, offset);
-
+  test = 0;
   ref_time += offset;
   r = rtimer_set(tm, ref_time, 1, (void (*)(struct rtimer *, void *))tsch_slot_operation, NULL);
   if(r != RTIMER_OK) {
@@ -889,7 +892,6 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
   input_index = ringbufindex_peek_put(&input_ringbuf);
   //Block already at QUEBUUF_NUM -1 since we might need 1 free packet slot for retransmitting a failed transmit
   if((input_index == -1) || (tsch_queue_global_packet_count() == (QUEUEBUF_NUM -1))) {
-    //LOG_ERR("Dropping packets: index = %i and queue %i of %i\n", input_index, tsch_queue_global_packet_count(), QUEUEBUF_NUM);
     input_queue_drop++;
   } else {
     static struct input_packet *current_input;
@@ -909,8 +911,14 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
     current_input = &input_array[input_index];
 
     /* Wait before starting to listen */
+    //TODO:: loop ? Does the protothread wait here before starting to liste and receive a package?
     TSCH_SCHEDULE_AND_YIELD(pt, t, current_slot_start, tsch_timing[tsch_ts_rx_offset] - RADIO_DELAY_BEFORE_RX, "RxBeforeListen");
     TSCH_DEBUG_RX_EVENT();
+
+    if(test)
+    {
+      LOG_ERR("Passed RxBeforeListen after the error \n");
+    }
 
     /* Start radio for at least guard time */
     tsch_radio_on(TSCH_RADIO_CMD_ON_WITHIN_TIMESLOT);
