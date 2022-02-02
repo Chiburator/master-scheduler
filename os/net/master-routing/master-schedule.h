@@ -65,6 +65,8 @@ typedef struct __attribute__((packed)) master_tsch_schedule_universall_config_t
   uint8_t first_tx_slot_in_flow[MASTER_NUM_FLOWS]; 
   uint8_t last_tx_slot_in_flow[MASTER_NUM_FLOWS]; 
   uint8_t last_received_relayed_packet_of_flow[MASTER_NUM_FLOWS]; 
+  struct tsch_asn_t created_as_asn;                                 //The time when this config was created as asn
+  struct tsch_asn_t offset_as_asn;                                  //The offset as asn when the switch to the new schedule should take place
 } master_tsch_schedule_universall_config_t;
 
 extern master_tsch_schedule_universall_config_t schedule_config;
@@ -76,4 +78,11 @@ uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow);
 void setBit(int k);
 void clearBit(int k);
 uint8_t isBitSet(int k);
+/**
+ * Check if every packet for the current schedule is received.
+ * Returns -1 if all packets are received. Otherwise the return value is the missing packet.
+ * 
+ * \param last_packet The last packet for a schedule
+*/
+int getMissingPacket(int last_packet);
 #endif /* MASTER_SCHEDULE_H */

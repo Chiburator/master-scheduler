@@ -83,7 +83,7 @@ uint8_t cycles_since_last_timesource_eb = 0;
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH"
-#define LOG_LEVEL LOG_LEVEL_DBG
+#define LOG_LEVEL LOG_LEVEL_NONE
 
 #if TSCH_DEBUG_PRINT
 #include <stdio.h>
@@ -581,7 +581,7 @@ eb_input(struct input_packet *current_input)
     neighbor_discovery_input(&eb_ies.ie_sequence_number, (linkaddr_t *)&frame.src_addr);
     if(eb_ies.ie_schedule_version != schedule_version)
     {
-      schedule_difference_callback(eb_ies.ie_schedule_version, eb_ies.ie_schedule_packets);
+      schedule_difference_callback((linkaddr_t *)&frame.src_addr, eb_ies.ie_schedule_version, eb_ies.ie_schedule_packets);
     }
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   }
@@ -1496,9 +1496,9 @@ packet_input(void)
 
     if (!duplicate)
     {
-      LOG_INFO("received from ");
-      LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
-      LOG_INFO_(" with seqno %u\n", packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO));
+      // LOG_INFO("received from ");
+      // LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
+      // LOG_INFO_(" with seqno %u\n", packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO));
 #if TSCH_WITH_SIXTOP
       sixtop_input();
 #endif /* TSCH_WITH_SIXTOP */

@@ -324,6 +324,52 @@ void tsch_queue_update_neighbour_rank_and_time_source(const linkaddr_t *neighbou
   nbr->time_source = time_source;
 }
 
+uint8_t tsch_queue_is_packet_in_nbr_queue(struct tsch_neighbor *nbr, uint8_t packet_number)
+{
+
+  LOG_ERR("Looking for packet %d\n", packet_number);
+  if (!tsch_is_locked())
+  {
+    if(nbr != NULL)
+    {
+      int16_t index = ringbufindex_peek_get(&nbr->tx_ringbuf);
+      if(index != -1)
+      {
+        if(queuebuf_attr(nbr->tx_array[index]->qb, PACKETBUF_ATTR_PACKET_NUMBER) == packet_number)
+        {
+          return 1;
+        }
+        else{
+          return 0;
+        }
+      }
+      // int16_t mask = nbr->tx_ringbuf.mask;
+      // int16_t index = ringbufindex_peek_get(&nbr->tx_ringbuf);
+      // int16_t put_index = ringbufindex_peek_put(&nbr->tx_ringbuf);
+      
+      // LOG_ERR("Have %d packets start index %d and end index %d with mask %d\n", ringbufindex_elements(&nbr->tx_ringbuf), index, put_index, mask);
+
+      // while(index != -1)
+      // {
+      //   LOG_ERR("Packet index %d has packet number %d \n", index, queuebuf_attr(nbr->tx_array[index]->qb, PACKETBUF_ATTR_PACKET_NUMBER));
+      //   if(queuebuf_attr(nbr->tx_array[index]->qb, PACKETBUF_ATTR_PACKET_NUMBER) == packet_number)
+      //   {
+      //     found = 1;
+      //     break;
+      //   }
+
+      //   if(((put_index - index) & mask) > 0) 
+      //   {
+      //     index = (index + 1) & mask;
+      //   } else {
+      //     index = -1;
+      //   }
+      // }
+    }
+  }
+  return 0;
+}
+
 #endif
 /*---------------------------------------------------------------------------*/
 /* Flush a neighbor queue */

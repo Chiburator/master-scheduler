@@ -52,7 +52,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "MASTER-N"
-#define LOG_LEVEL LOG_LEVEL_TRACE
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 
 uint8_t *masternet_buf;
@@ -76,16 +76,14 @@ init(void)
 static void
 input(void)
 {
-  LOG_TRACE("input \n");
   if(current_input_callback != NULL) {
     //below: might be too verbose timing wise
-    LOG_INFO("received %u bytes from ", packetbuf_datalen());
-    LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
-    LOG_INFO_("\n");
+    // LOG_INFO("received %u bytes from ", packetbuf_datalen());
+    // LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
+    // LOG_INFO_("\n");
     current_input_callback(packetbuf_dataptr(), packetbuf_datalen(),
       packetbuf_addr(PACKETBUF_ADDR_SENDER), packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
   }
-  LOG_TRACE_RETURN("input \n");
 }
 /*--------------------------------------------------------------------*/
 void
@@ -130,6 +128,7 @@ output(const linkaddr_t *dest)
     master_packetbuf_config_t packet_configuration = config_callback();
     //set max_transmissions
     packetbuf_set_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS, packet_configuration.max_tx);
+    packetbuf_set_attr(PACKETBUF_ATTR_PACKET_NUMBER, packet_configuration.packet_nbr);
 
 #   if TSCH_FLOW_BASED_QUEUES
       //packetbuf set flow number
@@ -145,7 +144,7 @@ output(const linkaddr_t *dest)
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     //The command will be transformed to a uint8_t
     //command[0] = packet_configuration.command;
-    LOG_INFO("Set command to %d\n", packet_configuration.command);
+    //LOG_INFO("Set command to %d\n", packet_configuration.command);
     packets[current_packet_index].command = packet_configuration.command;
   #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
     packetbuf_set_attr(PACKETBUF_ATTR_SEND_NBR, packet_configuration.send_to_nbr);

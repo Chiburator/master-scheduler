@@ -209,7 +209,7 @@ extern const struct mac_driver tschmac_driver;
 /**
  * Function prototype for MasterRouting callback on different schedule
 */
-typedef void (* master_routing_schedule_difference_callback)(uint8_t schedule_version, uint16_t schedule_packets);
+typedef void (* master_routing_schedule_difference_callback)(linkaddr_t * nbr, uint8_t schedule_version, uint16_t schedule_packets);
 
 /**
  * Set input callback for MasterRouting

@@ -92,7 +92,7 @@
 #endif
 
 #define LOG_MODULE "TSCH-SlotOperation"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 /* Check if TSCH_MAX_INCOMING_PACKETS is power of two */
 #if (TSCH_MAX_INCOMING_PACKETS & (TSCH_MAX_INCOMING_PACKETS - 1)) != 0
@@ -800,9 +800,9 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
                 mac_tx_status = MAC_TX_NOACK;
               }
             } else {
-              TSCH_LOG_ADD(tsch_log_message,
-                snprintf(log->message, sizeof(log->message),
-                "is broadcast"));
+              // TSCH_LOG_ADD(tsch_log_message,
+              //   snprintf(log->message, sizeof(log->message),
+              //   "is broadcast"));
               mac_tx_status = MAC_TX_OK;
             }
           } else {
@@ -810,11 +810,11 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
           }
 
           if(current_neighbor != n_eb) {
-            TSCH_LOG_ADD(tsch_log_message,
-                      snprintf(log->message, sizeof(log->message),
-                      "[    TX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}",
-                      tsch_current_asn.ms1b, (unsigned long)tsch_current_asn.ls4b,
-                      current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset));
+            // TSCH_LOG_ADD(tsch_log_message,
+            //           snprintf(log->message, sizeof(log->message),
+            //           "[    TX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}",
+            //           tsch_current_asn.ms1b, (unsigned long)tsch_current_asn.ls4b,
+            //           current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset));
             //LOG_ERR("[    TX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}\n",
             //      tsch_current_asn.ms1b, tsch_current_asn.ls4b,
             //      current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset);
@@ -1237,9 +1237,9 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       //} else {
       //  printf("current_packet = NULL\n");
       }else{
-      TSCH_LOG_ADD(tsch_log_message,
-          snprintf(log->message, sizeof(log->message),
-             "!is active is also 0"););
+      // TSCH_LOG_ADD(tsch_log_message,
+      //     snprintf(log->message, sizeof(log->message),
+      //        "!is active is also 0"););
       }
       //notify nullnet-user of timeslot
       //set_timeslot_based_timer(current_link->timeslot, current_link->slotframe_handle);

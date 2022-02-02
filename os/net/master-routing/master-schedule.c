@@ -366,20 +366,37 @@ uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow)
 
 void setBit(int k)
 {
-    received_packets_as_bit_array[k/32] |= 1 << (k%32);
+  received_packets_as_bit_array[k/32] |= 1 << (k%32);
 }
 
 void clearBit(int k)
 {
-    received_packets_as_bit_array[k/32] &= ~(1 << (k%32)); 
+  received_packets_as_bit_array[k/32] &= ~(1 << (k%32)); 
 }
 
 uint8_t isBitSet(int k)
 {
-    if ( (received_packets_as_bit_array[k/32] & (1 << (k%32) ))  ) 
-    {
-        return 1;
-    }else{
-        return 0;
-    }
+  if ( (received_packets_as_bit_array[k/32] & (1 << (k%32) ))  ) 
+  {
+      return 1;
+  }else{
+      return 0;
+  }
+}
+
+int getMissingPacket(int last_packet)
+{
+  //We start with packets counting from 1
+  int position = 1;
+  while(isBitSet(position) && position <= last_packet)
+  {
+    position++;
+  }
+
+  if(position > last_packet)
+  {
+    return -1;
+  }else{
+    return position;
+  }
 }
