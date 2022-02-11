@@ -108,9 +108,9 @@
   static const uint8_t deployment_node_count = 20;
   master_tsch_schedule_t schedules[20] = {0};
 #if MAX_PACKETS_PER_SCHEDULE % 32 != 0
-  uint32_t metric_received[MAX_PACKETS_PER_SCHEDULE / 32]= {0}; 
+  uint32_t metric_received[MAX_PACKETS_PER_SCHEDULE / 32]; 
 #else
-  uint32_t metric_received[(MAX_PACKETS_PER_SCHEDULE / 32) + 1] = {0}; 
+  uint32_t metric_received[(MAX_PACKETS_PER_SCHEDULE / 32) + 1]; 
 #endif
   //uint8_t metric_received[21] = {0}; //node 11 is missing and instead node 21 exists
 #elif TESTBED == TESTBED_DESK
@@ -309,7 +309,7 @@ int add_start_asn(int offset)
 
 uint8_t fill_universal_config(int offset)
 {
-  //TODO:: what i universal config is bigger than 1 packet?
+  //TODO:: what if universal config is bigger than 1 packet?
   mrp.data[offset] = schedule_config.schedule_length;
   mrp.data[offset + 1] = schedule_config.slot_frames;
   offset += 2;
@@ -436,7 +436,7 @@ void unpack_packet(int packet_len)
   memset(test_out, 0, 200);
 
   int unpack_at_index = 2; //0 = command, 1 = packet number, >= 2 data
-  printf("Packet bytes receiving %d\n", packet_len);
+  //printf("Packet bytes receiving %d\n", packet_len);
   if(mrp.data[1] == 1)
   {
     schedule_config.schedule_length = mrp.data[2];
@@ -449,7 +449,7 @@ void unpack_packet(int packet_len)
 
     unpack_at_index = unpack_asn(unpack_at_index);
 
-    printf("Packet contained universal config. unpack %d bytes \n", unpack_at_index);
+    //printf("Packet contained universal config. unpack %d bytes \n", unpack_at_index);
   }
 
   uint8_t schedule_index = mrp.data[unpack_at_index];
@@ -479,10 +479,10 @@ void unpack_packet(int packet_len)
       {
         offset += sprintf(&test_out[offset], "%i", ((uint8_t *)&schedules[schedule_index] + last_byte_written)[i]);
       }
-      printf("packet %d; id %d; %s\n", mrp.data[1], schedule_index, test_out);
+      //printf("packet %d; id %d; %s\n", mrp.data[1], schedule_index, test_out);
       memset(test_out, 0, 200);
       offset = 0;
-      printf("Packet contains full schedule to unpack for schedule %d. start from %d to %d (totall %d)\n", schedule_index, unpack_at_index, unpack_at_index + schedule_len, schedule_len);
+      //printf("Packet contains full schedule to unpack for schedule %d. start from %d to %d (totall %d)\n", schedule_index, unpack_at_index, unpack_at_index + schedule_len, schedule_len);
       schedule_index++;
       unpack_at_index += schedule_len;
       last_byte_written = 0;
@@ -497,10 +497,10 @@ void unpack_packet(int packet_len)
       {
         offset += sprintf(&test_out[offset], "%i", ((uint8_t *)&schedules[schedule_index + last_byte_written])[i]);
       }
-      printf("packet %d; id %d; %s\n", mrp.data[1], schedule_index, test_out);
+      //printf("packet %d; id %d; %s\n", mrp.data[1], schedule_index, test_out);
       memset(test_out, 0, 200);
       offset = 0;
-      printf("Packet contains part of the schedule to unpack for schedule %d. start from %d to %d (totall %d)\n", schedule_index, unpack_at_index, unpack_at_index + packet_len - unpack_at_index, packet_len - unpack_at_index);
+      //printf("Packet contains part of the schedule to unpack for schedule %d. start from %d to %d (totall %d)\n", schedule_index, unpack_at_index, unpack_at_index + packet_len - unpack_at_index, packet_len - unpack_at_index);
       unpack_at_index += packet_len - unpack_at_index;
     }
   }
@@ -579,9 +579,8 @@ void install_schedule(){
 }
 
 //Prepare the master_packetbuf_config_t for MASTER-NET
-void prepare_forward_config(uint8_t etx_link, uint8_t command, uint8_t packet_number)
+void prepare_forward_config(uint8_t etx_link, uint8_t command, uint16_t packet_number, uint8_t important_packet)
 {
-  LOG_ERR("ETX-value %d\n", etx_link);
   if (etx_link % 10 > 0)
   {
     sent_packet_configuration.max_tx = (etx_link/ 10) + 1;
@@ -594,6 +593,7 @@ void prepare_forward_config(uint8_t etx_link, uint8_t command, uint8_t packet_nu
   // Prepare packet to send metric to requester
   sent_packet_configuration.command = command;
   sent_packet_configuration.packet_nbr = packet_number;
+  sent_packet_configuration.important_packet = important_packet;
 # if TSCH_FLOW_BASED_QUEUES
   sent_packet_configuration.flow_number = node_id;
 # endif /* TSCH_FLOW_BASED_QUEUES */
@@ -615,18 +615,18 @@ void prepare_link_for_metric_distribution(const linkaddr_t* dest, uint16_t times
     }
 }
 
-//Depending on the state, send packets to time_source or a neihgbor to poll their metric
+//Depending on the state, send packets to time_source or poll a neighbor for their metric
 void handle_convergcast(int repeat)
 {
   if (current_state == ST_POLL_NEIGHBOUR)
   {
-    // Prepare packet for get metrix command
+    // Prepare packet for get metric command
     mrp.flow_number = node_id;
     mrp.packet_number = ++own_packet_number;
     mrp.data[0] = CM_GET_ETX_METRIC;
     masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
 
-    prepare_forward_config(next_dest->etx_link, CM_GET_ETX_METRIC, mrp.packet_number);
+    prepare_forward_config(next_dest->etx_link, CM_GET_ETX_METRIC, mrp.packet_number, 0);
 
     prepare_link_for_metric_distribution(&next_dest->addr, node_id - 1);
 
@@ -634,7 +634,7 @@ void handle_convergcast(int repeat)
     NETSTACK_NETWORK.output(&next_dest->addr);
   }else
   {
-    prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC, mrp.packet_number);
+    prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC, mrp.packet_number, 0);
 
     prepare_link_for_metric_distribution(&tsch_queue_get_time_source()->addr, node_id - 1);
 
@@ -865,6 +865,47 @@ void handle_retransmit()
   }
 }
 
+/* Check for missing packets. If all packets are received, finish the schedule gathering. Otherwise send next request for a missing packet */
+void request_retransmit_or_finish(const linkaddr_t * destination)
+{
+  //Only search for packets if we still dont have the whole schedule
+  if(current_state != ST_SCHEDULE_OLD)
+  {
+    return;
+  }
+
+  //In a retransmit scenario, we already found out how many packets we need to have
+  int missing_packet = getMissingPacket(received_packets_as_bit_array, schedule_packets);
+
+  if(missing_packet == -1)
+  { 
+    //Finished, activate EB again
+    tsch_eb_active = 1;
+    //We are finished. increment the version and go into finished state
+    current_state = ST_SCHEDULE_INSTALLED;
+    schedule_version++;
+    LOG_ERR("Received all packets. Version %d with %d packets\n", schedule_version, schedule_packets);
+
+    tsch_schedule_remove_link_by_timeslot(sf[1], node_id - 1);
+    tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, node_id - 1, 0);
+  }else{
+    //TODO:: check if the current retransmit packet is already in the queue
+    //Prepare the packets for output
+    mrp.flow_number = node_id;
+    mrp.packet_number = ++own_packet_number;
+    mrp.data[0] = CM_SCHEDULE_RETRANSMIT_REQ;
+    mrp.data[1] = missing_packet;
+
+    prepare_forward_config(tsch_queue_get_nbr(destination)->etx_link, CM_SCHEDULE_RETRANSMIT_REQ, mrp.data[1], 0);
+
+    masternet_len = minimal_routing_packet_size + 2;
+
+    LOG_ERR("Requesting retransmit from %d for packet %d with size %d\n", destination->u8[NODE_ID_INDEX], missing_packet, masternet_len);
+
+    NETSTACK_NETWORK.output(destination);
+  }
+}
+
 void handle_covergcast_callback(packet_data_t *packet_data, int ret, int transmissions)
 {
  // We requiere the ETX-metric, therefore try again
@@ -996,16 +1037,30 @@ void handle_divergcast_callback(packet_data_t *packet_data, int ret,int transmis
   //This will only happen in unicast -> retransmit/retransmit_request
   if (ret != MAC_TX_OK)
   {
+    int ie_offset = 0;
+    if(packetbuf_attr(PACKETBUF_ATTR_MAC_METADATA))
+    {
+      printf("Callback for a packet with IE fields\n");
+      ie_offset = 9;
+    }
     memset(&mrp, 0, sizeof(mrp));
-    memcpy(&mrp, packetbuf_dataptr() + packet_data->hdr_len, packetbuf_datalen() - packet_data->hdr_len);
-    LOG_ERR("MRP command %d, packet %d, trans %d and size %d\n", mrp.data[0], mrp.data[1], transmissions, packetbuf_datalen() - packet_data->hdr_len);
+    memcpy(&mrp, packetbuf_dataptr() + packet_data->hdr_len + ie_offset, packetbuf_datalen() - packet_data->hdr_len - ie_offset);
+    LOG_ERR("MRP command %s, packet %d, trans %d; size %d (hdr %d vs packet %d) and ie_offset %d\n", mrp.data[0] == CM_SCHEDULE_RETRANSMIT ? "Retransmit" : "Request", 
+    mrp.data[1], transmissions, packetbuf_datalen(), packetbuf_hdrlen(), packet_data->hdr_len, ie_offset);
+    linkaddr_t dest_resend = *packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
 
     //Small optimization: in case we did not receive an ACK but the nbr send us already the requestet packet, drop the request
-    if(mrp.data[0] != CM_SCHEDULE_RETRANSMIT_REQ || isBitSet(received_packets_as_bit_array, mrp.data[1]) == 0)
+    if(mrp.data[0] == CM_SCHEDULE_RETRANSMIT_REQ && isBitSet(received_packets_as_bit_array, mrp.data[1]))
     {
-      linkaddr_t dest_resend = *packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
-      prepare_forward_config(tsch_queue_get_nbr(&dest_resend)->etx_link, mrp.data[0], mrp.data[1]);
-      masternet_len = packetbuf_datalen() - packet_data->hdr_len;
+      LOG_ERR("We already have this %d packet. Dropp request for it\n", mrp.data[1]);
+      request_retransmit_or_finish(&dest_resend); 
+      return;
+    }
+    else //if(mrp.data[0] != CM_SCHEDULE_RETRANSMIT_REQ || isBitSet(received_packets_as_bit_array, mrp.data[1]) == 0)
+    {
+      uint8_t important_packet = mrp.data[0] == CM_SCHEDULE_RETRANSMIT ? 1 : 0;
+      prepare_forward_config(tsch_queue_get_nbr(&dest_resend)->etx_link, mrp.data[0], mrp.data[1], important_packet);
+      masternet_len = packetbuf_datalen() - packet_data->hdr_len - ie_offset;
       NETSTACK_NETWORK.output(&dest_resend);
       return;
     }
@@ -1059,8 +1114,12 @@ void handle_divergcast_callback(packet_data_t *packet_data, int ret,int transmis
     if(current_state == ST_SCHEDULE_RETRANSMITTING)
     {
       handle_retransmit();
-    }else{
-      LOG_ERR("Nothing to do expect wait after retransmit request\n");
+    }else if(current_state == ST_SCHEDULE_OLD){
+      //If we received the packet already, search the next missing packet. otherwise wait for response.
+      if(isBitSet(received_packets_as_bit_array, packet_data->packet_nbr))
+      {
+        request_retransmit_or_finish(packetbuf_addr(PACKETBUF_ADDR_RECEIVER)); 
+      }
     }
   }
 
@@ -1094,6 +1153,7 @@ void master_schedule_difference_callback(linkaddr_t * nbr, uint8_t nbr_schedule_
 
     if(missing_packet == -1)
     {
+      //TODO:: in this case we got all packets. we just did not know `?
       LOG_ERR("why????\n");
     }
     LOG_ERR("NBR packets = %d\n", nbr_schedule_packets);
@@ -1101,17 +1161,13 @@ void master_schedule_difference_callback(linkaddr_t * nbr, uint8_t nbr_schedule_
     mrp.packet_number = ++own_packet_number;
     mrp.data[0] = CM_SCHEDULE_RETRANSMIT_REQ;
     mrp.data[1] = missing_packet;
-    prepare_forward_config(tsch_queue_get_nbr(nbr)->etx_link, CM_SCHEDULE_RETRANSMIT_REQ, mrp.data[1]);
+    prepare_forward_config(tsch_queue_get_nbr(nbr)->etx_link, CM_SCHEDULE_RETRANSMIT_REQ, mrp.data[1], 0);
     prepare_link_for_metric_distribution(nbr, node_id - 1);
 
     masternet_len = minimal_routing_packet_size + 2;
     LOG_ERR("Requesting retransmit from %d for packet %d with size %d\n", nbr->u8[NODE_ID_INDEX], missing_packet, masternet_len);
     NETSTACK_NETWORK.output(nbr);
-    //Wovon gehe ich aus?
-    //Wenn eine neue version gesehen wird, gehe ich davon aus, dass bereits teile davon zu mir gesendet wurden? somit warte ich grad auf den begin eines neuen schedule?
-    //TODO:: check alle packete wenn ein letzte packet erhalten wird. Wenn etwas fehlt ergänze
   }
-  //Then check for missing packets and start requesting. (set some kind of state to not get triggered by every beacon)
 }
 /*---------------------------------------------------------------------------*/
 // Callback for sent packets over TSCH.
@@ -1128,11 +1184,13 @@ void master_routing_output(void *data, int ret, int transmissions)
     return;
   }
 
-  if(packet_data->command < CM_SCHEDULE)
+  //Handle the metric gathering callback once a packet is sent or an error on sent occured
+  if(packet_data->command >= CM_GET_ETX_METRIC && packet_data->command <= CM_ETX_METRIC)
   {
     handle_covergcast_callback(packet_data, ret, transmissions);
   }
 
+  //Handle the metric distribution callback once a packet is sent or an error on sent occured
   if(packet_data->command >= CM_SCHEDULE && packet_data->command <= CM_SCHEDULE_END)
   {
     handle_divergcast_callback(packet_data, ret, transmissions);
@@ -1141,6 +1199,7 @@ void master_routing_output(void *data, int ret, int transmissions)
 /*---------------------------------------------------------------------------*/
 void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
+  LOG_ERR("Received len = %d (min %d, max %d)\n", len, minimal_routing_packet_size, maximal_routing_packet_size);
   if (len >= minimal_routing_packet_size && len <= maximal_routing_packet_size)
   {
     uint8_t forward_to_upper_layer = 0;
@@ -1149,7 +1208,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
 
     if(is_configured == 0)
     {
-      //LOG_ERR("Got a packet from %u with flow_number %i with command %u\n", src->u8[NODE_ID_INDEX], mrp.flow_number, command);
+
       if(command == CM_GET_ETX_METRIC)
       {
         // Start the metric gathering.
@@ -1170,7 +1229,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
 
       if(command == CM_ETX_METRIC)
       {
-        //In case we received the metric from out neighbor and he did not receive our ACK, he will resend. Drop the packet here
+        //In case we received the metric from our neighbor and he did not receive our ACK, he will resend. Drop the packet here
         if(mrp.flow_number == src->u8[NODE_ID_INDEX] && tsch_queue_get_nbr(src)->etx_metric_received)
         {
           LOG_ERR("Received already metric from %d = %d", mrp.flow_number, src->u8[NODE_ID_INDEX]);
@@ -1232,7 +1291,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
             handle_convergcast(0);
           }else{
             LOG_ERR("Add packet to time source queue\n");
-            prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC, mrp.packet_number);
+            prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC, mrp.packet_number, 0);
             NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
           }
         }
@@ -1254,7 +1313,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           //Check the packets in the bit vector to later find missing packets
           setBit(received_packets_as_bit_array, mrp.data[1]);
 
-            //Unpack into the schedule structure
+          //Unpack into the schedule structure
           unpack_packet(len - minimal_routing_packet_size);
 
           if(schedule_packets < mrp.data[1])
@@ -1305,66 +1364,58 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         }
       }
 
-      //Retransmit received. only apply packet is this node misses the packet
+      //Retransmit received. only apply packet if this node misses the packet
       if(command == CM_SCHEDULE_RETRANSMIT)
       {
+        //Get the schedule packet number
         int retransmitted_packet = mrp.data[1];
-        if(current_state == ST_SCHEDULE_OLD && isBitSet(received_packets_as_bit_array, retransmitted_packet) == 0)
+
+        //Only look at packets if we know that we miss some packets from the final schedule
+        if(current_state == ST_SCHEDULE_OLD)
         {
-          //While calculatig all of this, the src addr becomes null. remember the address here
+          //While parsing and retransmitting, the src addr becomes null. Save the address localy
           const linkaddr_t source_addr = *src;
-      
-          LOG_ERR("---------------- Packet Retransmit Nr.%d \n", retransmitted_packet);
-          //Check the packets in the bit vector to later find missing packets
-          setBit(received_packets_as_bit_array, retransmitted_packet);
 
-
-          //Unpack into the schedule structure
-          unpack_packet(len - minimal_routing_packet_size);
-
-          //The first packet contains the univeral config and therefore we can start the timer when the switch to the new schedule happens
-          if(mrp.data[1] == 1)
+          //If we miss this packet, add the packet to the schedule
+          if(isBitSet(received_packets_as_bit_array, retransmitted_packet) == 0)
           {
-            start_schedule_installation_timer();
+            LOG_ERR("---------------- Packet Retransmit Nr.%d \n", retransmitted_packet);
+            //Mark the packet in the bit vector as received
+            setBit(received_packets_as_bit_array, retransmitted_packet);
+
+            //Unpack into the schedule structure
+            unpack_packet(len - minimal_routing_packet_size);
+
+            //The first packet contains the univeral config and therefore we can start the timer when the switch to the new schedule happens
+            if(mrp.data[1] == 1)
+            {
+              start_schedule_installation_timer();
+            }
           }
 
-          //In a retransmit scenario, we already found out how many packets we need to have
-          int missing_packet = getMissingPacket(received_packets_as_bit_array, schedule_packets);
-          if(missing_packet == -1)
-          { 
-            //Finished, activate EB again
-            tsch_eb_active = 1;
-            //We are finished. increment the version and go into finished state
-            current_state = ST_SCHEDULE_INSTALLED;
-            schedule_version++;
-            LOG_ERR("Received all packets. Version %d with %d packets\n", schedule_version, schedule_packets);
-
-            tsch_schedule_remove_link_by_timeslot(sf[1], node_id - 1);
-            tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, node_id - 1, 0);
+          //If this packet was send to us, check if other packets are missing and start the next request
+          if(linkaddr_cmp(&linkaddr_node_addr, dest))
+          {
+            request_retransmit_or_finish(&source_addr); 
           }else{
-            LOG_ERR("Requesting retransmit from %d for packet %d with size %d\n", source_addr.u8[NODE_ID_INDEX], missing_packet, masternet_len);
-            //Prepare the packets for output
-            mrp.flow_number = node_id;
-            mrp.packet_number = ++own_packet_number;
-            mrp.data[0] = CM_SCHEDULE_RETRANSMIT_REQ;
-            mrp.data[1] = missing_packet;
-
-            prepare_forward_config(tsch_queue_get_nbr(&source_addr)->etx_link, CM_SCHEDULE_RETRANSMIT_REQ, mrp.data[1]);
-
-            masternet_len = minimal_routing_packet_size + 2;
-            NETSTACK_NETWORK.output(&source_addr);
+            //In case this packet was received but was for another node, dont request the next missing packet
+            LOG_ERR("Skip request for next packet: packet was not for me!\n");
           }
-        }else{
-          LOG_ERR("Already have this packet %d\n", retransmitted_packet);
         }
       }
 
+      //If we received a request to retransmit a packet, start generating the missing packet and send it
       if(command == CM_SCHEDULE_RETRANSMIT_REQ)
       {
-        LOG_ERR("Received request to retransmit packet %d\n", mrp.data[1]);
+        //While parsing and retransmitting, the src addr becomes null. Save the address localy
         const linkaddr_t source_addr = *src;
 
-        //If this packet is already in the queue, dont add it again
+        LOG_ERR("Received request to retransmit packet %d from %d\n", mrp.data[1], source_addr.u8[NODE_ID_INDEX]);
+
+        /* Small optimization: Due to missing ACK's, a node that sends requests to us for retransmit might send the same 
+         * request multiple times. Since only 1 request by each node will be send at a time, check if the queue for the requester contains the
+         * packet that was requestet.
+        */
         if(tsch_queue_is_packet_in_nbr_queue(tsch_queue_get_nbr(&source_addr), mrp.data[1]))
         {
           LOG_ERR("Packet already in Queue\n");
@@ -1372,17 +1423,16 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         }
 
         //We received a request to retransmit a packet. enter the retransmit state and prepare the packet.
+        mrp.flow_number = node_id;
+        mrp.packet_number = ++own_packet_number;
         mrp.data[0] = CM_SCHEDULE_RETRANSMIT;
         current_state = ST_SCHEDULE_RETRANSMITTING;
         int missing_packet = mrp.data[1];
         tsch_eb_active = 0;
 
-        //To avoid calculation get the schedule index and he offset to writing data into the packet ready
+        //Get the schedule index and the offset for the requestet packet to avoid calculating from the start
         last_schedule_id_started = hash_map_lookup(&map_packet_to_schedule_id, missing_packet);
         last_byte_filled = hash_map_lookup(&map_packet_to_last_byte_written, missing_packet);
-
-        mrp.flow_number = node_id;
-        mrp.packet_number = ++own_packet_number;
 
         //In case of the first packet missing, send the universal config with it.
         if(missing_packet == 1)
@@ -1392,15 +1442,16 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           fill_packet(2, missing_packet);
         }
 
-        prepare_forward_config(tsch_queue_get_nbr(&source_addr)->etx_link, CM_SCHEDULE_RETRANSMIT, mrp.data[1]);
+        prepare_forward_config(tsch_queue_get_nbr(&source_addr)->etx_link, CM_SCHEDULE_RETRANSMIT, mrp.data[1], 1);
 
         LOG_ERR("Add a packet for %d. total packets %d\n", source_addr.u8[NODE_ID_INDEX], tsch_queue_global_packet_count());
 
         NETSTACK_NETWORK.output(&source_addr);
+        
         //If we receive requests to retransmit parts of the schedule, we add them to the queue of the neighbor
         //When changing the link to a requester for a retransmit, check if we are looking at the broadcast address:
-        //In this case of broadcast address, this is the first request to retransmit. Change to requester and the packet will be sent
-        //In case we already changed the link to another requester, link change will be performed in the callback once the first requester got his packet
+        //If broadcast address -> this is the first request for a retransmit. Change to requester and the packet will be sent
+        //If not broadcast address -> we already send a retransmit to another nbr. Link change will be perfmored later in the callback
         if(linkaddr_cmp(&tsch_schedule_get_link_by_timeslot(sf[1], node_id - 1)->addr, &tsch_broadcast_address) != 0)
         {
           LOG_ERR("This is the first request, change to requester\n");

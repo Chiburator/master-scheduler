@@ -76,7 +76,8 @@ enum ieee802154e_mlme_short_subie_id {
   MLME_SHORT_IE_TSCH_MAC_METRICS_1,
   MLME_SHORT_IE_TSCH_MAC_METRICS_2,
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-  MLME_SHORT_IE_NEIGHBOR_DISCOVERY,
+  MLME_SHORT_IE_TSCH_IMPORTANT_PACKET = 0x37,
+  MLME_SHORT_IE_SEQUENCE_NUMBER ,
   MLME_SHORT_IE_RANK,
   MLME_SHORT_IE_TIME_SOURCE,
   MLME_SHORT_IE_SCHEDULE_VERSION,
@@ -243,6 +244,7 @@ int
 frame80215e_create_ie_tsch_synchronization(uint8_t *buf, int len,
     struct ieee802154_ies *ies)
 {
+  //printf("Inside frame802154e-ie creating\n");
   int ie_len = 6;
   if(len >= 2 + ie_len && ies != NULL) {
     buf[2] = ies->ie_asn.ls4b;
@@ -351,6 +353,19 @@ frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 /* MLME sub-IE. Neighbor discovery. Used in EBs: sequence number */
 int
+frame80215e_create_ie_packet_important(uint8_t *buf, int len,
+    struct ieee802154_ies *ies)
+{
+  int ie_len = 1;
+  if(len < 1 + ie_len || ies == NULL) {
+    return -1;
+  }
+  buf[2] = ies->ie_packet_important;
+  create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_TSCH_IMPORTANT_PACKET, ie_len);
+  return 2 + ie_len;
+}
+
+int
 frame80215e_create_ie_tsch_neighbor_discovery(uint8_t *buf, int len,
     struct ieee802154_ies *ies)
 {
@@ -359,11 +374,10 @@ frame80215e_create_ie_tsch_neighbor_discovery(uint8_t *buf, int len,
     return -1;
   }
   WRITE16(buf+2, ies->ie_sequence_number);
-  create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_NEIGHBOR_DISCOVERY, ie_len);
+  create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_SEQUENCE_NUMBER, ie_len);
   return 2 + ie_len;
 }
 
-/* MLME sub-IE. Neighbor discovery. Used in EBs: sequence number */
 int
 frame80215e_create_ie_tsch_rank(uint8_t *buf, int len,
     struct ieee802154_ies *ies)
@@ -512,7 +526,15 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
       }
       break;
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-    case MLME_SHORT_IE_NEIGHBOR_DISCOVERY:
+    case MLME_SHORT_IE_TSCH_IMPORTANT_PACKET:
+      if (len == 1){
+        if (ies != NULL){
+          ies->ie_packet_important = buf[0];
+        }
+        return len;
+      }
+      break;
+    case MLME_SHORT_IE_SEQUENCE_NUMBER:
       if (len == 2){
         if (ies != NULL){
           READ16(buf, ies->ie_sequence_number);
@@ -596,9 +618,10 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
   enum {PARSING_HEADER_IE, PARSING_PAYLOAD_IE, PARSING_MLME_SUBIE} parsing_state;
 
   if(ies == NULL) {
+    printf("ies is NULL\n");
     return -1;
   }
-
+  
   /* Always look for a header IE first (at least "list termination 1") */
   parsing_state = PARSING_HEADER_IE;
   ies->ie_payload_ie_offset = 0;
@@ -606,6 +629,7 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
   /* Loop over all IEs */
   while(buf_size > 0) {
     if(buf_size < 2) { /* Not enough space for IE descriptor */
+      printf("Not enough space for IE descriptor \n");
       return -1;
     }
     READ16(buf, ie_desc);

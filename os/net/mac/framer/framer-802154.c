@@ -43,6 +43,8 @@
 #include "lib/random.h"
 #include <string.h>
 
+#include "stdio.h"
+
 #include "sys/log.h"
 #define LOG_MODULE "Frame 15.4"
 #define LOG_LEVEL LOG_LEVEL_FRAMER
@@ -63,6 +65,7 @@ create_frame(int do_create)
   int hdr_len;
 
   if(frame802154_get_pan_id() == 0xffff) {
+    LOG_ERR("Pan id error\n");
     return -1;
   }
 
@@ -112,9 +115,9 @@ create_frame(int do_create)
   } else if(packetbuf_hdralloc(hdr_len)) {
     frame802154_create(&params, packetbuf_hdrptr());
 
-    LOG_INFO("Out: %2X ", params.fcf.frame_type);
-    LOG_INFO_LLADDR((const linkaddr_t *)params.dest_addr);
-    LOG_INFO_(" %d %u (%u)\n", hdr_len, packetbuf_datalen(), packetbuf_totlen());
+    // LOG_INFO("Out: %2X ", params.fcf.frame_type);
+    // LOG_INFO_LLADDR((const linkaddr_t *)params.dest_addr);
+    // LOG_INFO_(" %d %u (%u)\n", hdr_len, packetbuf_datalen(), packetbuf_totlen());
 
     return hdr_len;
   } else {
@@ -228,6 +231,7 @@ hdr_length(void)
 static int
 create(void)
 {
+  //printf("Inside framer-802154\n");
   return create_frame(1);
 }
 /*---------------------------------------------------------------------------*/
@@ -236,15 +240,18 @@ parse(void)
 {
   frame802154_t frame;
   int hdr_len;
-
+  printf("packetbuf datalen is = %d at beginning of parse() \n", packetbuf_datalen());
   hdr_len = frame802154_parse(packetbuf_dataptr(), packetbuf_datalen(), &frame);
 
   if(hdr_len && packetbuf_hdrreduce(hdr_len)) {
     packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, frame.fcf.frame_type);
+    packetbuf_set_attr(PACKETBUF_ATTR_MAC_METADATA, frame.fcf.ie_list_present);
 
+    //TODO:: this pan ID has to be ignored is ie_list_present is active
     if(frame.fcf.dest_addr_mode) {
       if(frame.dest_pid != frame802154_get_pan_id() &&
-         frame.dest_pid != FRAME802154_BROADCASTPANDID) {
+         frame.dest_pid != FRAME802154_BROADCASTPANDID && 
+         frame.fcf.ie_list_present != 1) {
         /* Packet to another PAN */
         LOG_WARN("15.4: for another pan %u\n", frame.dest_pid);
         return FRAMER_FAILED;

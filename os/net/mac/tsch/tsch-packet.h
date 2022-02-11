@@ -117,5 +117,13 @@ int tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
     frame802154_t *frame, struct ieee802154_ies *ies,
     uint8_t *hdrlen, int frame_without_mic);
 
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+/* Add an information elements to the unicast payload if possible */
+int tsch_packet_create_unicast();
+/* Parse the incoming packet. This will remove IE's and set up the buffer without IE's */
+int tsch_packet_parse_unicast(const uint8_t *buf, int buf_size,
+    struct ieee802154_ies *ies, uint8_t *hdr_len, uint8_t *ie_len, int frame_without_mic);
+#endif
+
 #endif /* __TSCH_PACKET_H__ */
 /** @} */

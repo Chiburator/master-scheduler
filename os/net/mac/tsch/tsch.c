@@ -62,6 +62,7 @@
 #include "net/mac/tsch/tsch-packet.h"
 #include "net/mac/tsch/tsch-security.h"
 #include "net/mac/mac-sequence.h"
+#include "net/queuebuf.h"
 #include "lib/random.h"
 
 uint8_t tsch_eb_active = 1;
@@ -576,8 +577,9 @@ eb_input(struct input_packet *current_input)
       schedule_difference_callback((linkaddr_t *)&frame.src_addr, eb_ies.ie_schedule_version, eb_ies.ie_schedule_packets);
     }
     #endif
-  }
-  LOG_TRACE_RETURN("eb_input \n");
+  }else{
+      LOG_ERR("SOMETHING wrong with eb");
+    }
 }
 /*---------------------------------------------------------------------------*/
 extern void neighbor_discovery_input(const uint16_t *data, struct tsch_neighbor *nbr)
@@ -646,32 +648,63 @@ tsch_rx_process_pending()
     int is_data = ret && frame.fcf.frame_type == FRAME802154_DATAFRAME;
     int is_eb = ret && frame.fcf.frame_version == FRAME802154_IEEE802154_2015 && frame.fcf.frame_type == FRAME802154_BEACONFRAME;
 
+    LOG_ERR("hdr size %d, data %d, eb %d\n", ret, is_data, is_eb);
     if (is_data)
-    { // HERE
-      TSCH_LOG_ADD(tsch_log_message,
-                   snprintf(log->message, sizeof(log->message),
-                            "[    RX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}",
-                            current_input->rx_asn.ms1b, (unsigned long)current_input->rx_asn.ls4b,
-                            current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset));
+    {
+      // TSCH_LOG_ADD(tsch_log_message,
+      //              snprintf(log->message, sizeof(log->message),
+      //                       "[    RX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}",
+      //                       current_input->rx_asn.ms1b, (unsigned long)current_input->rx_asn.ls4b,
+      //                       current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset));
       //LOG_ERR("[    RX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}\n",
       //  current_input->rx_asn.ms1b, current_input->rx_asn.ls4b,
       //  current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset);
       /* Skip EBs and other control messages */
       /* Copy to packetbuf for processing */
+
+      // If IE's are present, overwritte them before copying the payload into the packetbuffer
+      LOG_ERR("Is ie list present? %d\n", frame.fcf.ie_list_present);
+      if(frame.fcf.ie_list_present)
+      {
+      /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
+          int mic_len = 0;
+#if LLSEC802154_ENABLED
+          if (!frame_without_mic)
+          {
+            mic_len = tsch_security_mic_len(&frame);
+            if (buf_size < curr_len + mic_len)
+            {
+              return 0;
+            }
+          }
+#endif /* LLSEC802154_ENABLED */
+          /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
+          //ret_value should be all IE's in len
+          struct ieee802154_ies ies;
+          memset(&ies, 0, sizeof(struct ieee802154_ies));
+          uint8_t ie_len = 0;
+          if ((ie_len = frame802154e_parse_information_elements(current_input->payload + ret, current_input->len - ret - mic_len, &ies)) == -1)
+          {
+            LOG_ERR("! parse_ies: failed to parse IEs\n");
+            ringbufindex_get(&input_ringbuf);
+            continue;
+          }else{
+            //LOG_ERR("Trunacte packet and set payload from %d to %d, hdr = %d\n", current_input->len, current_input->len - ie_len, ret);
+            current_input->len -= ie_len;
+            memmove(&current_input->payload[ret], &current_input->payload[ret + ie_len], current_input->len - ret);
+          }
+      }
+
       packetbuf_copyfrom(current_input->payload, current_input->len);
       packetbuf_set_attr(PACKETBUF_ATTR_RSSI, current_input->rssi);
       packetbuf_set_attr(PACKETBUF_ATTR_CHANNEL, current_input->channel);
 #if TSCH_WITH_CENTRAL_SCHEDULING
       packetbuf_set_attr(PACKETBUF_ATTR_RECEIVED_ASN, (uint16_t)current_input->rx_asn.ls4b);
 #endif /* TSCH_WITH_CENTRAL_SCHEDULING */
-    }
 
-    if (is_data)
-    {
       /* Pass to upper layers */
       packet_input();
-    }
-    else if (is_eb)
+    } else if (is_eb)
     {
       eb_input(current_input);
     }
@@ -693,6 +726,28 @@ tsch_tx_process_pending(void)
   {
     struct tsch_packet *p = dequeued_array[dequeued_index];
     /* Put packet into packetbuf for packet_sent callback */
+    
+    //TODO:: parse the data correct?
+    // if(queuebuf_attr(p->qb, PACKETBUF_ATTR_MAC_METADATA))
+    // {
+    //   struct queuebuf_data *buframptr = queuebuf_load_to_ram(p->qb);
+    //   frame802154_t frame;
+    //   uint8_t ret = frame802154_parse(buframptr->data, buframptr->len, &frame);
+
+    //   struct ieee802154_ies ies;
+    //   memset(&ies, 0, sizeof(struct ieee802154_ies));
+    //   uint8_t ie_len = 0;
+    //   if ((ie_len = frame802154e_parse_information_elements(current_input->payload + ret, current_input->len - ret - mic_len, &ies)) == -1)
+    //   {
+    //     LOG_ERR("! parse_ies: failed to parse IEs\n");
+    //   }
+
+    //   LOG_ERR("Trunacte packet and set payload from %d to %d, hdr = %d\n", current_input->len, current_input->len - ie_len, ret);
+    //   current_input->len -= ie_len;
+    //   memmove(&current_input->payload[ret], &current_input->payload[ret + ie_len], current_input->len - ret);
+    // }
+
+
     queuebuf_to_packetbuf(p->qb);
     // LOG_INFO("packet sent to ");
     // LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
@@ -1290,7 +1345,7 @@ tsch_init(void)
 static void
 send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 {
-  //printf("add packet to queue!\n");
+  printf("Enter send_packet %d\n", packetbuf_datalen());
   int ret = MAC_TX_DEFERRED;
   int hdr_len = 0;
   //Get the receiver for this packet. Set in master-net - output
@@ -1395,6 +1450,14 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 
   //   LOG_INFO("Packet before frame create %s\n", str);
   // }
+
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+  if(packetbuf_attr(PACKETBUF_ATTR_MAC_METADATA))
+  {
+    tsch_packet_create_unicast();
+  }
+#endif
+
   if ((hdr_len = NETSTACK_FRAMER.create()) < 0)
   {
     LOG_ERR("! can't send packet due to framer error\n");
@@ -1459,7 +1522,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     LOG_ERR("DEREFERRED\n");
     mac_call_sent_callback(sent, ptr, ret, 1);
   }
-  LOG_TRACE_RETURN("send_packet \n");
+  LOG_ERR("send_packet left %d\n", packetbuf_datalen());
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1498,6 +1561,15 @@ packet_input(void)
 
     if (!duplicate)
     {
+      // TSCH_LOG_ADD(tsch_log_message,
+      //              snprintf(log->message, sizeof(log->message),
+      //                       "[    RX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}",
+      //                       current_input->rx_asn.ms1b, (unsigned long)current_input->rx_asn.ls4b,
+      //                       current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset));
+      //LOG_ERR("[    RX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}\n",
+      //  current_input->rx_asn.ms1b, current_input->rx_asn.ls4b,
+      //  current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset);
+
       // LOG_INFO("received from ");
       // LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
       // LOG_INFO_(" with seqno %u\n", packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO));

@@ -47,6 +47,7 @@
 #include "contiki-net.h"
 #include "net/packetbuf.h"
 #include "sys/cc.h"
+#include "stdio.h"
 
 struct packetbuf_attr packetbuf_attrs[PACKETBUF_NUM_ATTRS];
 struct packetbuf_addr packetbuf_addrs[PACKETBUF_NUM_ADDRS];
@@ -109,6 +110,7 @@ packetbuf_hdralloc(int size)
   int16_t i;
 
   if(size + packetbuf_totlen() > PACKETBUF_SIZE) {
+    printf("Total len %d, size %d and max size %d\n", packetbuf_totlen(), size, PACKETBUF_SIZE);
     return 0;
   }
 

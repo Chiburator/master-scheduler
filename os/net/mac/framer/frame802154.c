@@ -68,7 +68,7 @@
 #include "net/mac/llsec802154.h"
 #include "net/linkaddr.h"
 #include <string.h>
-//#include <stdio.h>
+#include <stdio.h>
 
 /**  \brief The 16-bit identifier of the PAN on which the device is
  *   operating.  If this value is 0xffff, the device is not
@@ -403,7 +403,7 @@ frame802154_create(frame802154_t *p, uint8_t *buf)
 #if LLSEC802154_USES_EXPLICIT_KEYS
   uint8_t key_id_mode;
 #endif /* LLSEC802154_USES_EXPLICIT_KEYS */
-
+  //printf("Inside frame802154\n");
   field_len(p, &flen);
 
   /* OK, now we have field lengths.  Time to actually construct */

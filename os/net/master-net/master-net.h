@@ -63,9 +63,9 @@ typedef struct master_packetbuf_config_t {
 # endif /* TSCH_FLOW_BASED_QUEUES */
   uint16_t max_tx;
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-  //The command will be transformed to a uint8_t
   uint8_t command;
   uint8_t packet_nbr;
+  uint8_t important_packet;
 #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
   uint8_t send_to_nbr;
 #endif
@@ -83,6 +83,7 @@ typedef struct master_packetbuf_config_t {
 
 typedef struct {
   uint8_t command;
+  uint8_t packet_nbr;
   uint8_t hdr_len;
 } packet_data_t;
 

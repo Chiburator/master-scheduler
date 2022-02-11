@@ -956,6 +956,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
         static int frame_valid;
         static int header_len;
         static frame802154_t frame;
+        struct ieee802154_ies ies;
         radio_value_t radio_last_rssi;
 
         /* Read packet */
@@ -976,11 +977,36 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
         current_input->rssi = (signed)radio_last_rssi;
         current_input->channel = current_channel;
         header_len = frame802154_parse((uint8_t *)current_input->payload, current_input->len, &frame);
-        //printf("header_len = %u\n", header_len);
         frame_valid = header_len > 0 &&
           frame802154_check_dest_panid(&frame) &&
           frame802154_extract_linkaddr(&frame, &source_address, &destination_address);
 
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+        memset(&ies, 0, sizeof(struct ieee802154_ies));
+        int total_len = 0;
+        if (frame.fcf.ie_list_present)
+        {
+          /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
+          int mic_len = 0;
+        // #if LLSEC802154_ENABLED
+        //   if (!frame_without_mic)
+        //   {
+        //     mic_len = tsch_security_mic_len(&frame);
+        //     if (buf_size < curr_len + mic_len)
+        //     {
+        //       return 0;
+        //     }
+        //   }
+        //  #endif /* LLSEC802154_ENABLED */
+          //LOG_ERR("Received packet with size %d, header len %d and payload len %d\n", current_input->len, header_len, frame.payload_len);
+          /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
+          if ((total_len = frame802154e_parse_information_elements((uint8_t *)current_input->payload + header_len, current_input->len - header_len - mic_len, &ies)) == -1)
+          {
+            LOG_ERR("! parse_ies: failed to parse IEs\n");
+          }
+          //LOG_ERR("ie len = %d, important? %d frame valid? %d\n", total_len, ies.ie_packet_important, frame_valid);
+        }
+#endif
 
 #if TSCH_RESYNC_WITH_SFD_TIMESTAMPS
         /* At the end of the reception, get an more accurate estimate of SFD arrival time */
@@ -1079,10 +1105,10 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
                 //SET_PIN_ADC2;
                 NETSTACK_RADIO.transmit(ack_len);
                 tsch_radio_off(TSCH_RADIO_CMD_OFF_WITHIN_TIMESLOT);
-                TSCH_LOG_ADD(tsch_log_message,
-                      snprintf(log->message, sizeof(log->message),
-                      "ACK_sent"));
-                //LOG_ERR("ACK_sent\n");
+                // TSCH_LOG_ADD(tsch_log_message,
+                //       snprintf(log->message, sizeof(log->message),
+                //       "ACK_sent"));
+                LOG_ERR("ACK_sent\n");
               }
             }
 
@@ -1117,6 +1143,17 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
             //  log->rx.estimated_drift = estimated_drift;
             //  log->rx.seqno = frame.seq;
             //);
+          }else{
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+            //In case of an important packet add it to input
+            if(!tsch_is_coordinator && total_len && frame.fcf.ie_list_present && ies.ie_packet_important)
+            {
+              LOG_ERR("add packet? %d %d %d\n", total_len, frame.fcf.ie_list_present, ies.ie_packet_important);
+              /* Add current input to ringbuf */
+              LOG_ERR("Found an important packet\n");
+              ringbufindex_put(&input_ringbuf);
+            }
+#endif
           }
 
           /* Poll process for processing of pending input and logs */

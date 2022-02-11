@@ -420,10 +420,10 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   p += ie_len;
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
 #endif
-
   ies.ie_mlme_len = packetbuf_datalen();
 
   /* make room for Payload IE header */
+  //Shift data 2 places to the right. Set the payload MLME (MAC sublayer management entity) in the 2 free bytes
   memmove((uint8_t *)packetbuf_dataptr() + payload_ie_hdr_len,
           packetbuf_dataptr(), packetbuf_datalen());
   packetbuf_set_datalen(packetbuf_datalen() + payload_ie_hdr_len);
@@ -485,6 +485,129 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 
   return packetbuf_totlen();
 }
+
+#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+int tsch_packet_create_unicast()
+{
+  //The payload ie_hdr_len is 2 bytes and the ie for ie_packet_important is 3 bytes
+  uint8_t payload_ie_hdr_len = 2;
+  uint8_t payload_ie_len = 3;
+  uint8_t payload_ie_termination2 = 2;
+
+  //Prepare the only ies we need for a unicast
+  struct ieee802154_ies ies;
+  memset(&ies, 0, sizeof(ies));
+  ies.ie_packet_important = 1;
+  ies.ie_mlme_len = payload_ie_len; //Set the length for the payload ies
+
+  int ie_len = 0;
+  printf("datalen-unicast at beginning of unicast = %d\n", packetbuf_datalen());
+  printf("hdrlen-unicast  = %d\n", packetbuf_hdrlen());
+  /* make room for Payload IE header */
+  //Shift data to the right
+  memmove((uint8_t *)packetbuf_dataptr() + payload_ie_hdr_len + payload_ie_len + payload_ie_termination2, packetbuf_dataptr(), packetbuf_datalen());
+
+  //Set the new packet buffer len
+  packetbuf_set_datalen(packetbuf_datalen() + payload_ie_hdr_len + payload_ie_len + payload_ie_termination2);
+
+  //Set the payload MLME (MAC sublayer management entity) in the first 2 bytes
+  ie_len = frame80215e_create_ie_mlme(packetbuf_dataptr(),
+                                      packetbuf_remaininglen(),
+                                      &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+
+  //Set the IE for important packets (3 bytes)
+  ie_len = frame80215e_create_ie_packet_important(packetbuf_dataptr() + payload_ie_hdr_len,
+                                                  packetbuf_remaininglen(),
+                                                  &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+
+  //TODO:: add frame80215e_create_ie_header_list_termination_2 with 2 bytes size before the payload. then add the rest
+  //Set the IE for important packets (3 bytes)
+  ie_len = frame80215e_create_ie_payload_list_termination(packetbuf_dataptr() + payload_ie_hdr_len + payload_ie_len,
+                                                          packetbuf_remaininglen(),
+                                                          &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+
+  /* allocate space for Header Termination IE, the size of which is 2 octets */
+  printf("datalen-unicast before hdr alloc = %d\n", packetbuf_datalen());
+  printf("hdrlen-unicast  = %d\n", packetbuf_hdrlen());
+  packetbuf_hdralloc(2);
+  ie_len = frame80215e_create_ie_header_list_termination_1(packetbuf_hdrptr(),
+                                                           packetbuf_remaininglen(),
+                                                           &ies);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+
+  printf("datalen-unicast after hdr alloc = %d\n", packetbuf_datalen());
+  printf("hdrlen-unicast = %d\n", packetbuf_hdrlen());
+  printf("hdrlen-unicast  totlen = %d\n", packetbuf_totlen());
+
+  return 1;
+}
+
+
+int tsch_packet_parse_unicast(const uint8_t *buf, int buf_size, 
+  struct ieee802154_ies *ies, uint8_t *hdr_len, uint8_t *ie_len, int frame_without_mic)
+{
+  if (buf_size < 0 || hdr_len == NULL || ie_len == NULL)
+  {
+    LOG_WARN("function call with wrong parameters!\n");
+    return 0;
+  }
+
+  /* Parse 802.15.4-2006 frame, i.e. all fields before Information Elements */
+  if ((*hdr_len = NETSTACK_FRAMER.parse()) == 0)
+  {
+    LOG_ERR("! parse_eb: failed to parse frame\n");
+    return 0;
+  }
+
+  if (ies != NULL)
+  {
+    memset(ies, 0, sizeof(struct ieee802154_ies));
+  }
+
+  if (packetbuf_attr(PACKETBUF_ATTR_MAC_METADATA))
+  {
+    /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
+    int mic_len = 0;
+#if LLSEC802154_ENABLED
+    if (!frame_without_mic)
+    {
+      mic_len = tsch_security_mic_len(&frame);
+      if (buf_size < curr_len + mic_len)
+      {
+        return 0;
+      }
+    }
+#endif /* LLSEC802154_ENABLED */
+    LOG_ERR("Received packet with size %d, header len %d\n", buf_size, hdr_len);
+    /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
+    //ret_value should be all IE's in len
+    if ((*ie_len = frame802154e_parse_information_elements(buf + *hdr_len, buf_size - *hdr_len - mic_len, ies)) == -1)
+    {
+      LOG_ERR("! parse_ies: failed to parse IEs\n");
+    }
+  }
+
+  LOG_ERR("ie length = %d and hdr length = %d\n", *ie_len, *hdr_len);
+  return 1;
+}
+
+#endif
+
 /*---------------------------------------------------------------------------*/
 /* Update ASN in EB packet */
 int tsch_packet_update_eb(uint8_t *buf, int buf_size, uint8_t tsch_sync_ie_offset)

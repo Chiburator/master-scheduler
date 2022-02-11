@@ -146,6 +146,9 @@ output(const linkaddr_t *dest)
     //command[0] = packet_configuration.command;
     //LOG_INFO("Set command to %d\n", packet_configuration.command);
     packets[current_packet_index].command = packet_configuration.command;
+    packets[current_packet_index].packet_nbr = packet_configuration.packet_nbr;
+
+    packetbuf_set_attr(PACKETBUF_ATTR_MAC_METADATA, packet_configuration.important_packet);
   #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
     packetbuf_set_attr(PACKETBUF_ATTR_SEND_NBR, packet_configuration.send_to_nbr);
   #endif
@@ -183,7 +186,7 @@ output(const linkaddr_t *dest)
     leds_off(LEDS_YELLOW);
     //NETSTACK_MAC.send(current_output_callback, (void *)command);
     NETSTACK_MAC.send(current_output_callback, &packets[current_packet_index]);
-    LOG_TRACE_RETURN("output \n");
+    LOG_ERR("Masternet send\n");
     return 1;
   } else {
     LOG_ERR("sending failed: %u bytes of %u possible bytes to ", masternet_len, max_payload);
