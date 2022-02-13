@@ -70,12 +70,23 @@ typedef struct __attribute__((packed)) master_tsch_schedule_universall_config_t
 extern master_tsch_schedule_universall_config_t schedule_config;
 
 struct master_tsch_schedule_t* get_own_schedule();
+
+int get_node_receiver();
+
+int node_is_sender();
+
 uint8_t get_forward_dest_by_slotframe(master_tsch_schedule_t* schedule, uint8_t link_idx);
+
 uint8_t get_forward_dest(master_tsch_schedule_t* schedule, uint8_t flow);
+
 uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow);
+
 void setBit(uint32_t *bit_vector, int k);
+
 void clearBit(uint32_t *bit_vector, int k);
+
 uint8_t isBitSet(uint32_t *bit_vector, int k);
+
 /**
  * Check if every packet for the current schedule is received.
  * Returns -1 if all packets are received. Otherwise the return value is the missing packet.

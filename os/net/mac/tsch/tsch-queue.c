@@ -324,6 +324,29 @@ void tsch_queue_update_neighbour_rank_and_time_source(const linkaddr_t *neighbou
   nbr->time_source = time_source;
 }
 
+// uint8_t tsch_queue_has_packet_type(struct tsch_neighbor *nbr, int type)
+// {
+//   LOG_ERR("Looking for packet %d\n", type);
+//   if (!tsch_is_locked())
+//   {
+//     if(nbr != NULL)
+//     {
+//       int16_t index = ringbufindex_peek_get(&nbr->tx_ringbuf);
+//       if(index != -1)
+//       {
+//         if(queuebuf_attr(nbr->tx_array[index]->qb, PACKETBUF_ATTR_PACKET_NUMBER) == packet_number)
+//         {
+//           return 1;
+//         }
+//         else{
+//           return 0;
+//         }
+//       }
+//     }
+//   }
+//   return 0;
+// }
+
 uint8_t tsch_queue_is_packet_in_nbr_queue(struct tsch_neighbor *nbr, uint8_t packet_number)
 {
 

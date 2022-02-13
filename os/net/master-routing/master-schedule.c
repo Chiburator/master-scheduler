@@ -336,6 +336,17 @@ struct master_tsch_schedule_t* get_own_schedule()
   return &schedules[linkaddr_node_addr.u8[NODE_ID_INDEX] - 1];
 }
 
+int get_node_receiver()
+{
+  return get_own_schedule()->own_receiver;
+}
+
+int node_is_sender()
+{
+  //We are a sender if we have own_receiver != 0
+  return get_node_receiver() != 0;
+}
+
 //Flow_forwards array starts at 0 and flow index at 1, therefore access the correct forward by slotframe - 1
 uint8_t get_forward_dest_by_slotframe(master_tsch_schedule_t* schedule, uint8_t link_idx)
 {

@@ -501,8 +501,7 @@ int tsch_packet_create_unicast()
   ies.ie_mlme_len = payload_ie_len; //Set the length for the payload ies
 
   int ie_len = 0;
-  printf("datalen-unicast at beginning of unicast = %d\n", packetbuf_datalen());
-  printf("hdrlen-unicast  = %d\n", packetbuf_hdrlen());
+
   /* make room for Payload IE header */
   //Shift data to the right
   memmove((uint8_t *)packetbuf_dataptr() + payload_ie_hdr_len + payload_ie_len + payload_ie_termination2, packetbuf_dataptr(), packetbuf_datalen());
@@ -539,8 +538,6 @@ int tsch_packet_create_unicast()
   }
 
   /* allocate space for Header Termination IE, the size of which is 2 octets */
-  printf("datalen-unicast before hdr alloc = %d\n", packetbuf_datalen());
-  printf("hdrlen-unicast  = %d\n", packetbuf_hdrlen());
   packetbuf_hdralloc(2);
   ie_len = frame80215e_create_ie_header_list_termination_1(packetbuf_hdrptr(),
                                                            packetbuf_remaininglen(),
@@ -549,10 +546,6 @@ int tsch_packet_create_unicast()
   {
     return -1;
   }
-
-  printf("datalen-unicast after hdr alloc = %d\n", packetbuf_datalen());
-  printf("hdrlen-unicast = %d\n", packetbuf_hdrlen());
-  printf("hdrlen-unicast  totlen = %d\n", packetbuf_totlen());
 
   return 1;
 }

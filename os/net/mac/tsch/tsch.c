@@ -1345,7 +1345,6 @@ tsch_init(void)
 static void
 send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 {
-  printf("Enter send_packet %d\n", packetbuf_datalen());
   int ret = MAC_TX_DEFERRED;
   int hdr_len = 0;
   //Get the receiver for this packet. Set in master-net - output
@@ -1522,7 +1521,6 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     LOG_ERR("DEREFERRED\n");
     mac_call_sent_callback(sent, ptr, ret, 1);
   }
-  LOG_ERR("send_packet left %d\n", packetbuf_datalen());
 }
 /*---------------------------------------------------------------------------*/
 static void

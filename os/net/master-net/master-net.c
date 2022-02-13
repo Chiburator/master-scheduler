@@ -157,10 +157,10 @@ output(const linkaddr_t *dest)
 
   if(dest != NULL) {
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, dest);
-    //LOG_ERR("Master net addres != null %d\n", dest->u8[NODE_ID_INDEX]);
+    LOG_ERR("Master net addres != null %d\n", dest->u8[NODE_ID_INDEX]);
   } else {
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &linkaddr_null);
-    //LOG_ERR("Master net addres == null \n");
+    LOG_ERR("Master net addres == null \n");
   }
   packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
 
@@ -184,7 +184,6 @@ output(const linkaddr_t *dest)
     //LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
-    //NETSTACK_MAC.send(current_output_callback, (void *)command);
     NETSTACK_MAC.send(current_output_callback, &packets[current_packet_index]);
     LOG_ERR("Masternet send\n");
     return 1;

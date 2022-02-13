@@ -53,9 +53,10 @@ enum phase
   ST_SEND_METRIC,
   ST_WAIT_FOR_SCHEDULE,
   ST_SCHEDULE_DIST,
-  ST_SCHEDULE_INSTALLED,
   ST_SCHEDULE_OLD,
   ST_SCHEDULE_RETRANSMITTING,
+  ST_SCHEDULE_RECEIVED,
+  ST_SCHEDULE_INSTALLED,
   ST_END,
 };
 
@@ -130,7 +131,7 @@ void command_input_schedule_new_packet(uint16_t len);
 void command_input_schedule_packet(enum commands command, uint16_t len);
 void command_input_schedule_last_packet(enum commands command, uint16_t len);
 void command_input_get_metric();
-void command_input_send_metric(uint16_t len, const linkaddr_t *src);
+int command_input_send_metric(uint16_t len, const linkaddr_t *src);
 void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src);
 void command_input_send_metric_Node(uint16_t len, const linkaddr_t *src);
 #endif /* MASTER_ROUTING_H */
