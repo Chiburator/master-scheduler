@@ -122,8 +122,13 @@ void init_master_routing(void);
 void install_schedule();
 
 void handle_state_change(enum phase new_state);
-void transition_to_new_state_after_callback(int command, int has_packets_to_forward);
+int handle_schedule_distribution_state_changes(enum commands command, uint16_t len);
 int has_next_neighbor();
+void command_input_schedule_retransmitt(uint16_t len, const linkaddr_t *src, const linkaddr_t *dest);
+void command_input_schedule_retransmitt_request(const linkaddr_t *src);
+void command_input_schedule_new_packet(uint16_t len);
+void command_input_schedule_packet(enum commands command, uint16_t len);
+void command_input_schedule_last_packet(enum commands command, uint16_t len);
 void command_input_get_metric();
 void command_input_send_metric(uint16_t len, const linkaddr_t *src);
 void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src);
