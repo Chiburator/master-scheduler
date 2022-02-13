@@ -593,7 +593,7 @@ int tsch_packet_parse_unicast(const uint8_t *buf, int buf_size,
       }
     }
 #endif /* LLSEC802154_ENABLED */
-    LOG_ERR("Received packet with size %d, header len %d\n", buf_size, hdr_len);
+    //LOG_ERR("Received packet with size %d, header len %d\n", buf_size, hdr_len);
     /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
     //ret_value should be all IE's in len
     if ((*ie_len = frame802154e_parse_information_elements(buf + *hdr_len, buf_size - *hdr_len - mic_len, ies)) == -1)

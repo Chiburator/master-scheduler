@@ -240,7 +240,7 @@ parse(void)
 {
   frame802154_t frame;
   int hdr_len;
-  printf("packetbuf datalen is = %d at beginning of parse() \n", packetbuf_datalen());
+
   hdr_len = frame802154_parse(packetbuf_dataptr(), packetbuf_datalen(), &frame);
 
   if(hdr_len && packetbuf_hdrreduce(hdr_len)) {

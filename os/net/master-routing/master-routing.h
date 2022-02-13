@@ -62,8 +62,8 @@ enum phase
 enum commands
 {
   CM_NO_COMMAND,
-  CM_GET_ETX_METRIC,
-  CM_ETX_METRIC,
+  CM_ETX_METRIC_GET,
+  CM_ETX_METRIC_SEND,
   CM_SCHEDULE,
   CM_SCHEDULE_RETRANSMIT,
   CM_SCHEDULE_RETRANSMIT_REQ,
@@ -121,6 +121,13 @@ void init_master_routing(void);
 
 void install_schedule();
 
+void handle_state_change(enum phase new_state);
+void transition_to_new_state_after_callback(int command, int has_packets_to_forward);
+int has_next_neighbor();
+void command_input_get_metric();
+void command_input_send_metric(uint16_t len, const linkaddr_t *src);
+void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src);
+void command_input_send_metric_Node(uint16_t len, const linkaddr_t *src);
 #endif /* MASTER_ROUTING_H */
 
 /** @} */

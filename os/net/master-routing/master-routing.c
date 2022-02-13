@@ -589,7 +589,7 @@ void prepare_forward_config(uint8_t etx_link, uint8_t command, uint16_t packet_n
   {
     sent_packet_configuration.max_tx = etx_link / 10;
   }
-
+sent_packet_configuration.max_tx =4;
   // Prepare packet to send metric to requester
   sent_packet_configuration.command = command;
   sent_packet_configuration.packet_nbr = packet_number;
@@ -608,25 +608,25 @@ void prepare_forward_config(uint8_t etx_link, uint8_t command, uint16_t packet_n
 //This function is used only to switch the links during convergast. therefore most parameters are set
 void prepare_link_for_metric_distribution(const linkaddr_t* dest, uint16_t timeslot)
 {
-    if(linkaddr_cmp(&tsch_schedule_get_link_by_timeslot(sf[1], timeslot)->addr, dest) == 0)
-    {
-      tsch_schedule_remove_link_by_timeslot(sf[1], timeslot);
-      tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, dest, timeslot, 0);
-    }
+  if(linkaddr_cmp(&tsch_schedule_get_link_by_timeslot(sf[1], timeslot)->addr, dest) == 0)
+  {
+    tsch_schedule_remove_link_by_timeslot(sf[1], timeslot);
+    tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, dest, timeslot, 0);
+  }
 }
 
 //Depending on the state, send packets to time_source or poll a neighbor for their metric
-void handle_convergcast(int repeat)
+void handle_convergcast()
 {
   if (current_state == ST_POLL_NEIGHBOUR)
   {
     // Prepare packet for get metric command
     mrp.flow_number = node_id;
     mrp.packet_number = ++own_packet_number;
-    mrp.data[0] = CM_GET_ETX_METRIC;
+    mrp.data[0] = CM_ETX_METRIC_GET;
     masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
 
-    prepare_forward_config(next_dest->etx_link, CM_GET_ETX_METRIC, mrp.packet_number, 0);
+    prepare_forward_config(next_dest->etx_link, CM_ETX_METRIC_GET, mrp.packet_number, 0);
 
     prepare_link_for_metric_distribution(&next_dest->addr, node_id - 1);
 
@@ -634,7 +634,7 @@ void handle_convergcast(int repeat)
     NETSTACK_NETWORK.output(&next_dest->addr);
   }else
   {
-    prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC, mrp.packet_number, 0);
+    prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC_SEND, mrp.packet_number, 0);
 
     prepare_link_for_metric_distribution(&tsch_queue_get_time_source()->addr, node_id - 1);
 
@@ -729,26 +729,15 @@ void prepare_etx_metric()
 {
   mrp.flow_number = node_id;
   mrp.packet_number = ++own_packet_number;
-  int command = CM_ETX_METRIC;
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+  int command = CM_ETX_METRIC_SEND;
+
   int len = calculate_etx_metric();
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
 
   memcpy(&(mrp.data), &command, sizeof(uint8_t));
   memcpy(&(mrp.data[1]), etx_links, len);
   masternet_len = minimal_routing_packet_size + sizeof(uint8_t) + len;
 
-  handle_convergcast(0);
+  handle_convergcast();
 }
 
 void poll_nbr_or_finish()
@@ -756,7 +745,7 @@ void poll_nbr_or_finish()
   if(set_next_neighbour())
   {
     LOG_ERR("Queue empty but polling neighbors are there\n");
-    handle_convergcast(0);
+    handle_convergcast();
   }else{
     //In case no queued packets and no more neighbors, mark ourself as finished and activate beacons
     current_state = ST_WAIT_FOR_SCHEDULE;
@@ -771,33 +760,22 @@ void poll_nbr_or_finish()
 static void
 master_install_schedule(void *ptr)
 {
-  LOG_INFO("install schedule\n");
-  tsch_eb_active = 0;
-  LOG_ERR("EB deactivated\n");
   LOG_INFO("Starting convergcast\n");
 
-  if(tsch_is_coordinator)
+  if(!tsch_is_coordinator)
   {
-    int len = calculate_etx_metric();
-    print_metric(etx_links, node_id, len);
-    setBit(metric_received, node_id - 1);
-    current_state = ST_POLL_NEIGHBOUR;
-    LOG_INFO("Have %d nbrs\n", tsch_queue_count_nbr());
-    next_dest = tsch_queue_first_nbr();
-    while (next_dest != NULL && next_dest->time_source != node_id)
-    {
-      next_dest = tsch_queue_next_nbr(next_dest);
-    }
-    
-    handle_convergcast(0);
-  }else{
-    LOG_ERR("My time src is %d, my rank %d, with etx %d and nbr size is %d with %d flows\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], tsch_rank, tsch_queue_get_time_source()->etx_link, TSCH_QUEUE_MAX_NEIGHBOR_QUEUES, MASTER_NUM_FLOWS);
-    if (current_state == ST_BEGIN_GATHER_METRIC)
-    {
-      LOG_ERR("Starting prepare metric\n");
-      prepare_etx_metric();
-    }
+    LOG_ERR("Not coordinator but still started by install schedule!\n");
   }
+
+  handle_state_change(ST_POLL_NEIGHBOUR);
+
+  int len = calculate_etx_metric();
+  print_metric(etx_links, node_id, len);
+  setBit(metric_received, node_id - 1);
+
+  has_next_neighbor();
+  
+  handle_convergcast();
 
   started = 1;
   LOG_INFO("started\n");
@@ -946,7 +924,7 @@ void handle_covergcast_callback(packet_data_t *packet_data, int ret, int transmi
     }else{
       //LOG_ERR("MRP contains now: %s\n", test);
       LOG_ERR("MRP contains flownumber: %d with size %d\n", mrp.flow_number, packetbuf_datalen() - packet_data->hdr_len);
-      handle_convergcast(1);
+      handle_convergcast();
       return;
     }
   }
@@ -955,7 +933,7 @@ void handle_covergcast_callback(packet_data_t *packet_data, int ret, int transmi
   if (tsch_is_coordinator)
   {
     // Ignore callback from sent packets that are not poll requests
-    if (packet_data->command != CM_GET_ETX_METRIC)
+    if (packet_data->command != CM_ETX_METRIC_GET)
     {
       return;
     }
@@ -963,7 +941,7 @@ void handle_covergcast_callback(packet_data_t *packet_data, int ret, int transmi
     // In case there are still neighbours left, poll the next, otherwise finish
     if (set_next_neighbour())
     {
-      handle_convergcast(0);
+      handle_convergcast();
     }
     else
     {
@@ -975,6 +953,7 @@ void handle_covergcast_callback(packet_data_t *packet_data, int ret, int transmi
   }
   else
   {
+
     // When we are not the coordinator and send our metric, we end up here after an ACK
     // get the first neighbor and poll him
     if (current_state == ST_BEGIN_GATHER_METRIC)
@@ -997,7 +976,7 @@ void handle_covergcast_callback(packet_data_t *packet_data, int ret, int transmi
 
       // Start Polling with first neighbor
       current_state = ST_POLL_NEIGHBOUR;
-      handle_convergcast(0);
+      handle_convergcast();
       return;
     }
 
@@ -1170,24 +1149,377 @@ void master_schedule_difference_callback(linkaddr_t * nbr, uint8_t nbr_schedule_
   }
 }
 /*---------------------------------------------------------------------------*/
-// Callback for sent packets over TSCH.
-void master_routing_output(void *data, int ret, int transmissions)
-{
-  LOG_INFO("master callback for sent packets \n");
 
+/*---------------------------------------------------------------------------*/
+/* Depending on the state, set other flags for TSCH and MASTER */
+void handle_state_change(enum phase new_state)
+{
+  if(new_state == ST_SEND_METRIC || new_state == ST_POLL_NEIGHBOUR)
+  {
+    tsch_eb_active = 0;
+  }
+
+  if(new_state == ST_WAIT_FOR_SCHEDULE)
+  {
+    //In case no queued packets and no more neighbors, mark ourself as finished and activate beacons
+    tsch_eb_active = 1;
+  }
+  LOG_ERR("changed state\n");
+  current_state = new_state;
+}
+// Get the next neighbour that has this node as his time source
+int has_next_neighbor()
+{
+  //We are starting the search for a nbr. find first dest adress
+  if(next_dest == NULL)
+  {
+    LOG_INFO("No next neighbor\n");
+    return 0;
+  }
+
+  if(linkaddr_cmp(&next_dest->addr, &tsch_broadcast_address))
+  {
+    LOG_ERR("Try getting first nbr\n");
+    next_dest = tsch_queue_first_nbr();
+    while (next_dest->time_source != linkaddr_node_addr.u8[NODE_ID_INDEX])
+    {
+      next_dest = tsch_queue_next_nbr(next_dest);
+
+      if (next_dest == NULL)
+      {
+        return 0;
+      }
+    }
+  }else{
+    do
+    {
+      next_dest = tsch_queue_next_nbr(next_dest);
+
+      if (next_dest == NULL)
+      {
+        return 0;
+      }
+
+    } while (next_dest->time_source != node_id);
+  }
+  LOG_ERR("This is my nbr with id %d, source %d etx-link %d\n", next_dest->addr.u8[NODE_ID_INDEX], next_dest->time_source, next_dest->etx_link);
+  return 1;
+}
+
+int is_valid_transition_for_state(int new_state)
+{
+  int result = 0;
+  switch (current_state)
+  {
+  case ST_EB:
+    result = new_state == ST_SEND_METRIC;
+    break;
+  case ST_POLL_NEIGHBOUR:
+    result = new_state == ST_WAIT_FOR_SCHEDULE || new_state == ST_SEND_METRIC || new_state == ST_POLL_NEIGHBOUR;
+    break;
+  case ST_SEND_METRIC:
+    result = new_state == ST_POLL_NEIGHBOUR || new_state == ST_SEND_METRIC;
+    break;
+  case ST_WAIT_FOR_SCHEDULE:
+    result = new_state == ST_SEND_METRIC || new_state == ST_WAIT_FOR_SCHEDULE;
+    break;
+  default:
+    break;
+  }
+  return result;
+}
+
+/* Returns the next state depending on the current state. -1 for commands that are not expected for this state */
+int transition_to_new_state(int command, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest, enum phase next_state)
+{
+  int result = 1;
+  LOG_ERR("Received a packet from %d with len %d\n", src->u8[NODE_ID_INDEX], len);
+  switch (current_state)
+  {
+  //Only allow request for metric
+  case ST_EB:
+    if(command == CM_ETX_METRIC_GET)
+    {
+      handle_state_change(ST_SEND_METRIC);
+      command_input_get_metric();
+    }else{
+      result = -1;
+    }
+    break;
+  //Switch to forwarding once a forward packet arrives
+  case ST_POLL_NEIGHBOUR:
+    if(command == CM_ETX_METRIC_SEND)
+    {
+      LOG_ERR("Polling nbrs right now \n");
+      command_input_send_metric(len, src);
+    }else{
+      result = -1;
+    }
+    break;
+  //Keep forwarding when packets arrive for a forward
+  case ST_SEND_METRIC:
+    if(command == CM_ETX_METRIC_SEND)
+    {
+      LOG_ERR("Sending data right now \n");
+      command_input_send_metric(len, src);
+    }else{
+      result = -1;
+    }
+    break;
+  //Allow forwarding of other metrics during this state or the beginning of divergcast
+  case ST_WAIT_FOR_SCHEDULE:
+    if(command == CM_ETX_METRIC_SEND)
+    {
+      LOG_ERR("ST_WAIT_FOR_SCHEDULEnow \n");
+      command_input_send_metric(len, src);
+      if(!tsch_is_coordinator)
+      {
+        handle_state_change(ST_SEND_METRIC);
+      }
+    }
+    if(command == CM_SCHEDULE)
+    {
+      result = ST_SCHEDULE_DIST;
+    }
+    break;
+  default:
+    LOG_ERR("Something went wrong!\n");
+    result = -1;
+    break;
+  }
+
+  return result;
+}
+
+void convergcast_callback(enum phase next_state)
+{
+  //In case the link to the time source already exists, dont remove and add it again
+  switch (next_state)
+  {
+  case ST_SEND_METRIC:
+    //Change to time source
+    prepare_link_for_metric_distribution(&tsch_queue_get_time_source()->addr, node_id - 1);
+    LOG_ERR("change link to time src\n");
+    break;
+  case ST_POLL_NEIGHBOUR:
+    LOG_ERR("Queue empty but polling neighbors are there\n");
+    handle_convergcast();
+    LOG_ERR("handle convergcast\n");
+    break;
+  case ST_WAIT_FOR_SCHEDULE:
+    prepare_link_for_metric_distribution(&tsch_broadcast_address, node_id - 1);
+    LOG_ERR("Finished polling neighbors\n");
+    break;  
+  default:
+    break;
+  }
+}
+
+void handle_callback_commands(packet_data_t *packet_data, int ret, int transmissions)
+{
+  //In case of an error, retransmit the packet again
+  if (ret != MAC_TX_OK )
+  {
+    LOG_ERR("Transmission error for command %d after %i transmits with code %d\n", packet_data->command, transmissions, ret);
+    struct tsch_neighbor * nbr = tsch_queue_get_nbr(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
+    if(nbr == NULL)
+    {
+      return;
+    }
+    /* Small optimizaton: If we poll a neighbor and dont receive ACKS, but already received this neighbors etx-metric, stop sending requests*/
+    if(current_state == ST_POLL_NEIGHBOUR && nbr->etx_metric_received)
+    {
+      LOG_ERR("Packet received while polling neighbor %d, dont repeat request!\n", nbr->addr.u8[NODE_ID_INDEX]);
+    }else{
+      memset(&mrp, 0, sizeof(mrp));
+      memcpy(&mrp, packetbuf_dataptr() + packet_data->hdr_len, packetbuf_datalen() - packet_data->hdr_len);
+      handle_convergcast();
+      return;
+    }
+  }
+
+  if(tsch_is_coordinator)
+  {
+    transition_to_new_state_after_callback(packet_data->command, 0);
+  }else{
+    transition_to_new_state_after_callback(packet_data->command, tsch_queue_is_empty(tsch_queue_get_time_source()) == 0);
+  }
+}
+
+/* Prepare the metric and start sending data*/
+void command_input_get_metric()
+{
+  LOG_ERR("Starting prepare metric by command\n");
+  mrp.flow_number = node_id;
+  mrp.packet_number = ++own_packet_number;
+  int command = CM_ETX_METRIC_SEND;
+
+  int len = calculate_etx_metric();
+
+  memcpy(&(mrp.data), &command, sizeof(uint8_t));
+  memcpy(&(mrp.data[1]), etx_links, len);
+  masternet_len = minimal_routing_packet_size + sizeof(uint8_t) + len;
+
+  handle_convergcast();
+}
+
+void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
+{
+  //While in neighbor discovery mode, flow number = node_id
+  setBit(metric_received, mrp.flow_number - 1);
+  print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - minimal_routing_packet_size - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
+  int i;
+  int finished_nodes = 0;
+  char missing_metrics[100];
+  int offset = 0;
+  int nodes_to_count = deployment_node_count;
+#if TESTBED == TESTBED_KIEL
+  nodes_to_count++;
+#endif
+  for(i = 0; i < nodes_to_count; i++)
+  {
+    if(isBitSet(metric_received, i))
+    {
+      finished_nodes++;
+    }else{
+      offset += sprintf(&missing_metrics[offset], "%i, ", i+1);
+    }
+  }
+
+  LOG_ERR("Missing metric from %s\n", missing_metrics);
+  if(finished_nodes == deployment_node_count)
+  {
+    LOG_ERR("ETX-Links finished!");    
+    process_start(&serial_line_schedule_input, NULL);
+  }
+}
+
+void command_input_send_metric_Node(uint16_t len, const linkaddr_t *src)
+{
+  masternet_len = len;
+
+  // Response of the Polling request, forward the metric to own time source
+  if(current_state == ST_WAIT_FOR_SCHEDULE && tsch_queue_is_empty(tsch_queue_get_time_source()))
+  {        
+    LOG_ERR("Polling finished but packet arrived. handle convergast!\n");
+    handle_convergcast();
+  }else{
+    LOG_ERR("Add packet to time source queue\n");
+    prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC_SEND, mrp.packet_number, 0);
+    NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
+  }
+}
+
+void command_input_send_metric(uint16_t len, const linkaddr_t *src)
+{
+  /* Small optimization: only works for direct neighbors */
+  //In case we received the metric from our neighbor and he did not receive our ACK, he will resend the metric again -> Drop the packet here
+  //The first check is to see if this packet is a metric from the sender or a forward from a node further away. 
+  //In the second case, we might not have this neighbor and do not check if the packet should be dropet
+  struct tsch_neighbor * nbr = tsch_queue_get_nbr(src);
+  if(mrp.flow_number == src->u8[NODE_ID_INDEX] && nbr != NULL && nbr->etx_metric_received)
+  {
+    LOG_ERR("Received already metric from %d = %d", mrp.flow_number, src->u8[NODE_ID_INDEX]);
+    return;
+  }
+
+  //Set the flag for received metric
+  if(nbr != NULL)
+  {
+    nbr->etx_metric_received = 1;
+  }
+
+  // Received metric from other nodes
+  if (tsch_is_coordinator)
+  {
+    command_input_send_metric_CPAN(len, src);
+  }else
+  {
+    command_input_send_metric_Node(len, src);
+  }
+}
+
+void transition_to_new_state_after_callback(int command, int has_packets_to_forward)
+{
+  enum phase next_state = 0;
+
+  switch (command)
+  {
+  case CM_ETX_METRIC_SEND:
+    LOG_ERR("state send metric\n");
+    //If there are packets left, keep sending the packets until the queue is empty. Otherwise poll neighbors
+    //Only poll neighbors if there are any neighbors left to poll. Otherwise we are done.
+    next_state = has_packets_to_forward ? ST_SEND_METRIC : has_next_neighbor() ? ST_POLL_NEIGHBOUR : ST_WAIT_FOR_SCHEDULE;
+
+    handle_state_change(next_state);
+    convergcast_callback(next_state);
+    break;
+  case CM_ETX_METRIC_GET:
+    LOG_ERR("state poll metric\n");
+    //If there are packets left, keep sending the packets until the queue is empty. Otherwise poll neighbors
+    //Only poll neighbors if there are any neighbors left to poll. Otherwise we are done.
+    next_state = has_packets_to_forward ? ST_SEND_METRIC : has_next_neighbor() ? ST_POLL_NEIGHBOUR : ST_WAIT_FOR_SCHEDULE;
+
+    handle_state_change(next_state);
+    convergcast_callback(next_state);
+    break;
+  default:
+    break;
+  }
+}
+
+void master_routing_input2(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
+{
+  //Ignore packets that have an invalid size
+  if (len < minimal_routing_packet_size || len > maximal_routing_packet_size)
+  {
+    LOG_ERR("Invalid packet size %d!", len);
+    return;
+  }
+
+  //Save the buffer into the packet struct and get the command inside the packet
+  memcpy(&mrp, data, len);
+  int command = mrp.data[0];
+  int forward_to_upper_layer = 0;
+
+  //In case this is an invalid command for the current state, return
+  enum phase next_state = 0;
+  next_state = transition_to_new_state(command, len, src, dest, next_state);
+  if(next_state == -1)
+  {
+    LOG_ERR("Invalid command %d during state %d", command, current_state);
+    return;
+  }
+
+  if (forward_to_upper_layer)
+  {
+    // TODO: exchange source by flow-source
+    // upper layer input callback (&mrp.data, len-minimal_routing_packet_size)
+    if(is_configured)
+    {
+      current_callback((void *)&mrp.data[COMMAND_END], len - minimal_routing_packet_size, schedule_config.sender_of_flow[mrp.flow_number - 1], schedule_config.receiver_of_flow[mrp.flow_number - 1]);
+    }else{
+      current_callback((void *)&mrp.data[COMMAND_END], len - minimal_routing_packet_size - COMMAND_END, src->u8[NODE_ID_INDEX], dest->u8[NODE_ID_INDEX]);
+    }
+  }
+}
+
+// Callback for sent packets over TSCH.
+void master_routing_output_callback(void *data, int ret, int transmissions)
+{
   packet_data_t *packet_data = (packet_data_t *)data;
   LOG_ERR("Current state: %d with command %d and return value %d\n", current_state, packet_data->command, ret);
 
   if(packet_data->command == CM_DATA || packet_data->command == CM_NO_COMMAND || packet_data->command == CM_END)
   {
-    //LOG_INFO("Got command after sending %i\n", command);
     return;
   }
 
   //Handle the metric gathering callback once a packet is sent or an error on sent occured
-  if(packet_data->command >= CM_GET_ETX_METRIC && packet_data->command <= CM_ETX_METRIC)
+  if(packet_data->command >= CM_ETX_METRIC_GET && packet_data->command <= CM_ETX_METRIC_SEND)
   {
-    handle_covergcast_callback(packet_data, ret, transmissions);
+    handle_callback_commands(packet_data, ret, transmissions);
+    //handle_covergcast_callback(packet_data, ret, transmissions);
   }
 
   //Handle the metric distribution callback once a packet is sent or an error on sent occured
@@ -1196,7 +1528,7 @@ void master_routing_output(void *data, int ret, int transmissions)
     handle_divergcast_callback(packet_data, ret, transmissions);
   }
 }
-/*---------------------------------------------------------------------------*/
+
 void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
   LOG_ERR("Received len = %d (min %d, max %d)\n", len, minimal_routing_packet_size, maximal_routing_packet_size);
@@ -1209,7 +1541,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
     if(is_configured == 0)
     {
 
-      if(command == CM_GET_ETX_METRIC)
+      if(command == CM_ETX_METRIC_GET)
       {
         // Start the metric gathering.
         //TODO:: only send metric on the first receive. otherwise we send multiple times
@@ -1227,7 +1559,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         }
       }
 
-      if(command == CM_ETX_METRIC)
+      if(command == CM_ETX_METRIC_SEND)
       {
         //In case we received the metric from our neighbor and he did not receive our ACK, he will resend. Drop the packet here
         if(mrp.flow_number == src->u8[NODE_ID_INDEX] && tsch_queue_get_nbr(src)->etx_metric_received)
@@ -1288,10 +1620,10 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
           {        
             current_state = ST_SEND_METRIC;
             LOG_ERR("Polling finished but packet arrived. handle convergast!\n");
-            handle_convergcast(0);
+            handle_convergcast();
           }else{
             LOG_ERR("Add packet to time source queue\n");
-            prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC, mrp.packet_number, 0);
+            prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC_SEND, mrp.packet_number, 0);
             NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
           }
         }
@@ -1447,7 +1779,7 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
         LOG_ERR("Add a packet for %d. total packets %d\n", source_addr.u8[NODE_ID_INDEX], tsch_queue_global_packet_count());
 
         NETSTACK_NETWORK.output(&source_addr);
-        
+
         //If we receive requests to retransmit parts of the schedule, we add them to the queue of the neighbor
         //When changing the link to a requester for a retransmit, check if we are looking at the broadcast address:
         //If broadcast address -> this is the first request for a retransmit. Change to requester and the packet will be sent
@@ -1742,8 +2074,8 @@ void init_master_routing(void)
     current_callback = NULL;
 
     /* Register MasterNet input/config callback */
-    masternet_set_input_callback(master_routing_input); // TODOLIV
-    masternet_set_output_callback(master_routing_output);
+    masternet_set_input_callback(master_routing_input2); // TODOLIV
+    masternet_set_output_callback(master_routing_output_callback);
     masternet_set_config_callback(master_routing_sent_configuration);
     tsch_set_schedule_difference_callback(master_schedule_difference_callback);
 
@@ -1777,9 +2109,14 @@ void init_master_routing(void)
     tsch_schedule_add_link(sf[0], LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);
     tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, node_id - 1, 0);
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
-    LOG_INFO("Time to run before convergcast = %i", ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000);
-    ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, finalize_neighbor_discovery, NULL);
-    //ctimer_set(&install_schedule_timer, (CLOCK_SECOND * 40), finalize_neighbor_discovery, NULL);
+    if(tsch_is_coordinator)
+    {
+      LOG_INFO("Time to run before convergcast = %i", ((TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000);
+      ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * TSCH_BEACON_AMOUNT) / 1000, finalize_neighbor_discovery, NULL);
+      //ctimer_set(&install_schedule_timer, (CLOCK_SECOND * 40), finalize_neighbor_discovery, NULL);
+    }
+
+    next_dest = tsch_queue_get_nbr(&tsch_broadcast_address);
   #else
     sf[0] = tsch_schedule_add_slotframe(0, 1);
     tsch_schedule_add_link(sf[0], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING, &tsch_broadcast_address, 0, 0);

@@ -630,7 +630,7 @@ extern void neighbor_discovery_input(const uint16_t *data, struct tsch_neighbor 
 
   nbr->etx_link = current_etx_link;
 
-  LOG_ERR("EBReceived;%i;%i;%i etx = %d, missed %d, last %d\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], nbr->last_eb, nbr->etx_link, nbr->missed_ebs, nbr->last_eb);
+  //LOG_ERR("EBReceived;%i;%i;%i etx = %d, missed %d, last %d\n", linkaddr_node_addr.u8[NODE_ID_INDEX], nbr->addr.u8[NODE_ID_INDEX], nbr->last_eb, nbr->etx_link, nbr->missed_ebs, nbr->last_eb);
 }
 /*---------------------------------------------------------------------------*/
 /* Process pending input packet(s) */
@@ -663,7 +663,7 @@ tsch_rx_process_pending()
       /* Copy to packetbuf for processing */
 
       // If IE's are present, overwritte them before copying the payload into the packetbuffer
-      LOG_ERR("Is ie list present? %d\n", frame.fcf.ie_list_present);
+      //LOG_ERR("Is ie list present? %d\n", frame.fcf.ie_list_present);
       if(frame.fcf.ie_list_present)
       {
       /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
