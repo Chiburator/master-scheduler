@@ -648,7 +648,7 @@ tsch_rx_process_pending()
     int is_data = ret && frame.fcf.frame_type == FRAME802154_DATAFRAME;
     int is_eb = ret && frame.fcf.frame_version == FRAME802154_IEEE802154_2015 && frame.fcf.frame_type == FRAME802154_BEACONFRAME;
 
-    LOG_ERR("hdr size %d, data %d, eb %d\n", ret, is_data, is_eb);
+    //LOG_ERR("hdr size %d, data %d, eb %d\n", ret, is_data, is_eb);
     if (is_data)
     {
       // TSCH_LOG_ADD(tsch_log_message,
@@ -1489,12 +1489,22 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
-      LOG_ERR("Add to Nbr addr. Queue packets ? %d\n", tsch_queue_global_packet_count());
+      LOG_ERR("Add to Nbr %d. Total packets in queue %d (this nbr %d)\n",addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count(), tsch_queue_packet_count(addr));
+    }
+    struct tsch_neighbor* n = tsch_queue_first_nbr();
+
+    while(n != NULL)
+    {
+      if(ringbufindex_elements(&n->tx_ringbuf) > 0)
+      {
+        LOG_ERR("Neighbor %d has %d packets in queue\n", n->addr.u8[NODE_ID_INDEX], ringbufindex_elements(&n->tx_ringbuf));
+      }
+      n = tsch_queue_next_nbr(n);
     }
 #else
     //Create a tsch_packet from the packetbuffer and add it to queue
     /* Enqueue packet */
-    LOG_ERR("Adding packet for to %d\n", addr->u8[NODE_ID_INDEX]);
+    printf("Adding packet for to %d\n", addr->u8[NODE_ID_INDEX]);
     p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
 #endif /* TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES */
     if (p == NULL)

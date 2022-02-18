@@ -549,7 +549,7 @@ tsch_queue_remove_packet_from_queue(struct tsch_neighbor *n)
           //} else {
           //--num_packets;
         } //*/
-        //LOG_ERR("Removed Packet at index %d for nbr %d\n", get_index, n->addr.u8[NODE_ID_INDEX]);
+        LOG_ERR("Removed Packet at index %d for nbr %d\n", get_index, n->addr.u8[NODE_ID_INDEX]);
         return n->tx_array[get_index];
       }
       else

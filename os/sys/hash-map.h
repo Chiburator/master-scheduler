@@ -13,11 +13,16 @@
 
 #include "contiki.h"
 
+#ifdef TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+#define HASH_MAP_SIZE 25
+#else
 #ifdef HASH_MAP_CONF_SIZE
 #define HASH_MAP_SIZE HASH_MAP_CONF_SIZE
 #else
 #define HASH_MAP_SIZE 8
 #endif
+#endif
+
 
 typedef struct hash_node_t hash_node_t;
 struct __attribute__((packed)) hash_node_t{

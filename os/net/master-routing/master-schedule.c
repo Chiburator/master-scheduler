@@ -385,6 +385,11 @@ uint8_t isBitSet(uint32_t *bit_vector, int k)
   }
 }
 
+void resetBitVector(uint32_t *bit_vector, uint8_t n)
+{
+  memset(bit_vector, 0, n * sizeof(uint32_t));
+}
+
 int getMissingPacket(uint32_t *bit_vector, int last_packet)
 {
   //We start with packets counting from 1

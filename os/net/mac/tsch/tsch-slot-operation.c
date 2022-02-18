@@ -860,6 +860,8 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
 
     /* Poll process for later processing of packet sent events and logs */
     process_poll(&tsch_pending_events_process);
+  }else{
+    printf("dequeued index -1\n");
   }
   //leds_off(LEDS_GREEN);
   TSCH_DEBUG_TX_EVENT();
@@ -1148,9 +1150,9 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
             //In case of an important packet add it to input
             if(!tsch_is_coordinator && total_len && frame.fcf.ie_list_present && ies.ie_packet_important)
             {
-              LOG_ERR("add packet? %d %d %d\n", total_len, frame.fcf.ie_list_present, ies.ie_packet_important);
+              //LOG_ERR("add packet? %d %d %d\n", total_len, frame.fcf.ie_list_present, ies.ie_packet_important);
               /* Add current input to ringbuf */
-              LOG_ERR("Found an important packet\n");
+              //LOG_ERR("Found an important packet\n");
               ringbufindex_put(&input_ringbuf);
             }
 #endif
