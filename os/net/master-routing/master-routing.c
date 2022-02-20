@@ -666,7 +666,7 @@ int calculate_etx_metric()
 
 /*---------------------------------------------------------------------------*/
 static void
-master_install_schedule(void *ptr)
+master_start_metric_gathering(void *ptr)
 {
   LOG_INFO("Starting convergcast\n");
 
@@ -697,7 +697,7 @@ static void finalize_neighbor_discovery(void *ptr)
   uint8_t cycles = 20; //How many beacon cycles should be left before gathering starts
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     /* wait for end of TSCH initialization phase, timed with MASTER_INIT_PERIOD */
-  ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * cycles) / 1000, master_install_schedule, NULL);
+  ctimer_set(&install_schedule_timer, (CLOCK_SECOND * (TSCH_DEFAULT_TS_TIMESLOT_LENGTH / 1000) * deployment_node_count * cycles) / 1000, master_start_metric_gathering, NULL);
   #else
   ctimer_set(&install_schedule_timer, MASTER_INIT_PERIOD, master_install_schedule, NULL);
   #endif
@@ -1353,13 +1353,11 @@ void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
 {
   //While in neighbor discovery mode, flow number = node_id
   setBit(metric_received, mrp.flow_number - 1);
-  print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - minimal_routing_packet_size - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
-
   int i;
-  int finished_nodes = 0;
   char missing_metrics[100];
   int offset = 0;
   int nodes_to_count = deployment_node_count;
+  int finished_nodes = 0;
 #if TESTBED == TESTBED_KIEL
   nodes_to_count++;
 #endif
@@ -1373,15 +1371,16 @@ void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
     }
   }
 
-  LOG_ERR("Missing metric from %s\n", missing_metrics);
   //Once all metrics are received, stop the timer to handle missing metrics and start listening for the schedule transmission
-  if(finished_nodes == deployment_node_count)
+  print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - minimal_routing_packet_size - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
+  if(finished_nodes == nodes_to_count)
   {
-    LOG_ERR("ETX-Links finished!");    
+    printf("ETX-Links finished!\n");    
  
     ctimer_stop(&missing_metric_timer);
     process_start(&serial_line_schedule_input, NULL);
   }else{
+    LOG_ERR("Missing metric from %s\n", missing_metrics);
     if(current_state == ST_WAIT_FOR_SCHEDULE)
     {
       ctimer_restart(&missing_metric_timer);
@@ -1564,7 +1563,6 @@ int transition_to_new_state(enum commands command, uint16_t len, const linkaddr_
   case ST_WAIT_FOR_SCHEDULE:
     if(command == CM_ETX_METRIC_SEND)
     {
-      LOG_ERR("Was in Waiting for schedule state\n");
       int change_state = command_input_send_metric(len, src);
       if(!tsch_is_coordinator && change_state)
       {
@@ -1671,11 +1669,18 @@ void handle_callback_commands_divergcast(packet_data_t *packet_data, int ret, in
     linkaddr_t dest_resend = *packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
 
     //Small optimization: in case we did not receive an ACK but the nbr send us already the requestet packet, drop the request
-    if(mrp.data[0] == CM_SCHEDULE_RETRANSMIT_REQ && isBitSet(received_packets_as_bit_array, mrp.data[1]))
+    if(mrp.data[0] == CM_SCHEDULE_RETRANSMIT_REQ)
     {
-      LOG_ERR("We already have this %d packet. Dropp request for it\n", mrp.data[1]);
-      request_retransmit_or_finish(&dest_resend); 
-      return;
+      if(isBitSet(received_packets_as_bit_array, mrp.data[1]))
+      {
+        LOG_ERR("We already have this %d packet. Dropp request for it\n", mrp.data[1]);
+        request_retransmit_or_finish(&dest_resend); 
+        return;
+      }else{
+        LOG_ERR("Bad link quality. drop earch and wait for new beacon from other neighbor\n");
+        handle_state_change(ST_SCHEDULE_DIST);
+        return;
+      }
     }
     else //if(mrp.data[0] != CM_SCHEDULE_RETRANSMIT_REQ || isBitSet(received_packets_as_bit_array, mrp.data[1]) == 0)
     {
