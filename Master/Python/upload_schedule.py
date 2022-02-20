@@ -26,9 +26,9 @@ def byte_to_ascii(byte):
                                               lowerNibble=lowerNibble)
   return char
 
-def upload_schedule(filepath):
+def upload_schedule(filepath, host, port):
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.connect(('127.0.0.1', 60001))
+    s.connect((host, port))
     with open(filepath, "rb") as file:
       bytes = C_MESSSAGE_BEGIN + file.read(bytes_to_write)
 
@@ -40,6 +40,7 @@ def upload_schedule(filepath):
           bytes_to_send += byte_to_ascii(byte)
 
         print(bytes)
+        print(bytes_to_send)
         s.send(bytes_to_send.encode('utf-8'))
 
         bytes = file.read(bytes_to_write)
@@ -54,4 +55,4 @@ def upload_schedule(filepath):
         time.sleep(1/5)
 
 if __name__ == '__main__':
-  upload_schedule("MeinTest.bin")
+  upload_schedule("MeinTest.bin", '127.0.0.1', 60001)

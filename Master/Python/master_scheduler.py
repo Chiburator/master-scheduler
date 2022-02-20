@@ -184,7 +184,9 @@ def main():
   #print(neighbor_parser.graph_etx)
   #Call new class using new form of regex
   parser = Parser_EB(node_ids, folder, filename, max_etx)
-  parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)
+  if(not parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)):
+    print("Metric not finished!")
+    return
   print(parser.graph_etx)
 
   flows = []
@@ -202,7 +204,8 @@ def main():
       deadline = None
     flows.append(Flow(parser.graph_etx, flow_id+1, source, destination, release_time, deadline)) # , max_sub_flow_length)
   
-  schedule = Schedule(flows) # parser.graph_etx, 
+  schedule = Schedule(flows) # parser.graph_etx,
+  print("num channels {}, window size {}".format(num_channels, fixed_window_size))
   schedule.create(etx_power, num_channels, scheduling_algorithm, scheduling_strategy, scheduling_window_size_alg, fixed_window_size)
 
   if args.print_schedule:

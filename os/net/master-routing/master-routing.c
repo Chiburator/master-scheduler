@@ -501,7 +501,7 @@ void install_schedule(){
     }
     sf[i] = tsch_schedule_add_slotframe(i, schedule_config.schedule_length);
   }  
-
+  uint8_t last_time_slot_used = 0;
   uint8_t link_idx;
   struct master_tsch_schedule_t* schedule = get_own_schedule();
   for (link_idx = 0; link_idx < schedule->links_len; ++link_idx){
@@ -516,8 +516,40 @@ void install_schedule(){
 
     tsch_schedule_add_link(sf, schedule->links[link_idx].send_receive, LINK_TYPE_NORMAL, &destination, schedule->links[link_idx].timeslot, schedule->links[link_idx].channel_offset);
   }
+
+  uint8_t num_of_nodes = 0;
+
+#if TESTBED == TESTBED_KIEL
+  num_of_nodes = 20;
+#else
+  num_of_nodes = NUM_COOJA_NODES;
+#endif
+
+  for(i = 0; i < num_of_nodes; i++)
+  {
+    schedule = &schedules[i];
+    int j ;
+    for(j = 0; j < schedule->links_len; j++)
+    {
+      if(schedule->links[j].timeslot > last_time_slot_used)
+      {
+        last_time_slot_used = schedule->links[j].timeslot ;
+      }
+    }
+  }
+
   //TODO:: this has to me changed later. Links should come from python
-  tsch_schedule_add_link(sf[1], LINK_OPTION_TX | LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, 40, 0); 
+  LOG_ERR("Last time slot used %d\n", last_time_slot_used);
+  for(i = 0; i < deployment_node_count; i++)
+  {
+    if(i == node_id - 1)
+    {
+      LOG_ERR("Send EB at %d\n", last_time_slot_used + i + 1);
+      tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, last_time_slot_used + i + 1, 0); 
+    }else{
+      tsch_schedule_add_link(sf[1], LINK_OPTION_RX, LINK_TYPE_ADVERTISING_ONLY, &tsch_broadcast_address, last_time_slot_used + i + 1, 0); 
+    }
+  }
 
   tsch_schedule_print();
 
@@ -1026,7 +1058,7 @@ void callback_convergcast(enum phase next_state)
     //As the coordinator, set a timer when polling is finished. In case metric do not arrive, start searching for missing packets
     if(tsch_is_coordinator)
     {
-      LOG_ERR("Starting timer for 60 sec (now clock is %d | %d)\n", clock_time(), clock_time() / CLOCK_SECOND);
+      LOG_ERR("Starting timer for 20 sec\n");
       ctimer_set(&missing_metric_timer, CLOCK_SECOND * 20, missing_metric_timeout, NULL);
     }
     prepare_link_for_metric_distribution(&tsch_broadcast_address, node_id - 1);
@@ -1373,7 +1405,7 @@ void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
 
   //Once all metrics are received, stop the timer to handle missing metrics and start listening for the schedule transmission
   print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - minimal_routing_packet_size - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
-  if(finished_nodes == nodes_to_count)
+  if(finished_nodes == deployment_node_count)
   {
     printf("ETX-Links finished!\n");    
  

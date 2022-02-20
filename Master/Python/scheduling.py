@@ -47,7 +47,9 @@ class Schedule(object):
       max_schedule_length += flow.length
     
     # init schedule
+    print("max schedule length {}".format(max_schedule_length))
     self.schedule = [[0] * max_schedule_length for _ in range(num_channels)]
+    print(self.schedule)
     self.used_nodes_in_timeslot = [[] for _ in range(max_schedule_length)]
 
     if algorithm == Scheduling_algorithm.rlpf:
@@ -77,6 +79,8 @@ class Schedule(object):
           cell = self.schedule[channel_idx][timeslot]
           if isinstance(cell, Cell):
             cell.set_schedule_attributes(timeslot, channel_idx)
+
+    print(self.schedule)
 
   def get_node_schedule(self, *nodes):
     # returns schedule for each node

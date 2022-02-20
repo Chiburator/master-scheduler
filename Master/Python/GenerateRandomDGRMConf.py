@@ -1,7 +1,7 @@
 import random
 
-MAX_NBRS = 15
-nodes = 21
+MAX_NBRS = 13
+nodes = 20
 node_range = nodes + 1
 graph = {}
 node_to_nbrs = {} #{2 : [3, 2, 1], ... }

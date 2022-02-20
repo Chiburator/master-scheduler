@@ -22,6 +22,7 @@ class Parser_EB(object):
     self.etx_metric = {} #{1 : {node-id : etx_value , ...}, 2 : {...}, ...}#
     self.parse_graphs = []
     self.graph_etx = defaultdict(dict)
+    self.schedule_finished = False
 
   def match_neighbor_data(self, line):
     match = re_search(r'ETX-Links - FROM (\d); ((\d:\d{1,3}.\d,? ?)+)', line)  # ETX-Links - FROM 1; 4:1.2, 3:1.2, 2:2.0, 4:2.2
@@ -36,9 +37,13 @@ class Parser_EB(object):
 
   def parse_file(self, filepath):
     print(filepath)
+
     with open(filepath, encoding="utf8", errors='ignore') as f:
       self.parse_graphs.append({})
       for line in f:
+        match = re_search(r'ETX-Links finished!',line)  # ETX-Links finished
+        if match:
+          self.schedule_finished = True
         self.match_neighbor_data(line)
 
   def print_parsed_data_table(self, table_type):
@@ -84,3 +89,4 @@ class Parser_EB(object):
       self.print_parsed_data_table(Data_table.etx)
     #if print_rssi:
     #  self.print_parsed_data_table(Data_table.rssi)
+    return self.schedule_finished
