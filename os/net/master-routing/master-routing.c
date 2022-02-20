@@ -884,7 +884,7 @@ static void missing_metric_timeout(void *ptr)
 /* Depending on the state, set other flags for TSCH and MASTER */
 void handle_state_change(enum phase new_state)
 {
-  if(new_state == ST_SEND_METRIC || new_state == ST_POLL_NEIGHBOUR || ST_SCHEDULE_DIST)
+  if(new_state == ST_SEND_METRIC || new_state == ST_POLL_NEIGHBOUR || ST_SCHEDULE_DIST || new_state == ST_POLL_MISSING_METRIC)
   {
     tsch_eb_active = 0;
   }
@@ -1313,7 +1313,8 @@ void command_input_missing_metric(int len)
   {
     LOG_ERR("Send missing metric request\n");
     //TODO:: how to differentiate between polls for missing metric or default polls?
-    convergcast_poll_neighbor(CM_ETX_METRIC_GET);
+    handle_state_change(ST_POLL_MISSING_METRIC);
+    convergcast_poll_neighbor(CM_ETX_METRIC_MISSING);
   }else{
     LOG_ERR("Forward broadcast\n");
     mrp.flow_number = node_id;
@@ -1463,6 +1464,11 @@ void transition_to_new_state_after_callback(packet_data_t * packet_data, int has
     callback_convergcast(next_state);
     break;
 
+  case CM_ETX_METRIC_MISSING:
+    LOG_ERR("finished CM_ETX_METRIC_MISSING\n");
+    handle_state_change(ST_WAIT_FOR_SCHEDULE);
+    break;
+
   case CM_SCHEDULE:
     LOG_ERR("State CM Schedule\n");
     callback_input_schedule_send();
@@ -1512,21 +1518,20 @@ int transition_to_new_state(enum commands command, uint16_t len, const linkaddr_
     if(command == CM_ETX_METRIC_GET)
     {
       //When we recei requests from nodes other than the cpan, we cant reach the cpan and other nodes poll us
-      if(linkaddr_cmp(src, &tsch_queue_get_time_source()->addr) == 0)
-      {
-        tsch_queue_update_time_source(src);
-      }
+      // if(linkaddr_cmp(src, &tsch_queue_get_time_source()->addr) == 0)
+      // {
+      //   tsch_queue_update_time_source(src);
+      // }
       handle_state_change(ST_SEND_METRIC);
       command_input_get_metric();
-
-      //We only want to react to missing metric requests from nodes that are not our time source
-      //If they are our time source and the did not poll us, they are not receiving our packets.
-    // }else if(command == CM_ETX_METRIC_MISSING && linkaddr_cmp(src, &tsch_queue_get_time_source()->addr) == 0){
-    //   //In this case we did not receive a poll for our metric from our time source. 
-    //   //Change to the node that is searching for our metric and handle the gathering.
-    //   tsch_queue_update_time_source(src);
-    //   handle_state_change(ST_SEND_METRIC);
-    //   command_input_get_metric();
+    }
+    
+    //We only want to react to missing metric requests from nodes that are not our time source
+    //If they are our time source and the did not poll us, they are not receiving our packets.
+    if(command == CM_ETX_METRIC_MISSING && linkaddr_cmp(src, &tsch_queue_get_time_source()->addr) == 0){
+      tsch_queue_update_time_source(src);
+      handle_state_change(ST_SEND_METRIC);
+      command_input_get_metric();
     }else {
       result = -1;
     }
@@ -1701,10 +1706,9 @@ void handle_callback_commands_convergcast(packet_data_t *packet_data, int ret, i
     if(current_state == ST_POLL_NEIGHBOUR && nbr->etx_metric_received)
     {
       LOG_ERR("Packet received while polling neighbor %d, dont repeat request!\n", nbr->addr.u8[NODE_ID_INDEX]);
-    }else if(current_state == ST_WAIT_FOR_SCHEDULE && packet_data->command == CM_ETX_METRIC_GET){
-      //TODOO wenn ich requests sende muss CM_ETX_METRIC_GEt drine stehen. aktuell wird ein POLL gesendet und der Command ist MISSING
+    }else if(current_state == ST_POLL_MISSING_METRIC && packet_data->command == CM_ETX_METRIC_MISSING){
       LOG_ERR("Handle poll again while missing metric\n");
-      convergcast_poll_neighbor(CM_ETX_METRIC_GET);
+      convergcast_poll_neighbor(CM_ETX_METRIC_MISSING);
       return;
     }else{
       memset(&mrp, 0, sizeof(mrp));

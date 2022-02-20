@@ -9,6 +9,9 @@ MAKE_NET = MAKE_NET_OTHER
 MODULES += os/net/master-net
 MODULES += os/net/master-routing
 
+#CFLAGS erweitern -fno-stack-protector
+#CFLAGS += execstack -s obj_cooja/tsch.o
+
 MODULES += os/services/simple-energest
 
 include $(CONTIKI)/Makefile.include
