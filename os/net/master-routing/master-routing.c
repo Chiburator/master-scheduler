@@ -172,7 +172,7 @@ uint8_t etx_links[(TSCH_QUEUE_MAX_NEIGHBOR_QUEUES - 2) * 2];
 #define MAX_CHARS_PER_ETX_LINK 8
 char str[MAX_CHARS_PER_ETX_LINK * TSCH_QUEUE_MAX_NEIGHBOR_QUEUES + 1]; //'\0' at the end
 char test_out[200];
-//char test[100];
+static struct ctimer missing_metric_timer;
 /*-------------------------- Routing configuration --------------------------*/
 
 #if MAC_CONF_WITH_TSCH
@@ -278,7 +278,7 @@ void start_schedule_installation_timer()
   // temp.ls4b = time_passed;
   int start_offset = TSCH_ASN_DIFF(schedule_config.start_network_asn, tsch_current_asn);
   LOG_ERR("time when to start the network in asn %d (time %lu ms)\n", 
-  start_offset, (CLOCK_SECOND * start_offset * (tsch_timing[tsch_ts_timeslot_length / 1000])) / 1000);
+  start_offset, (CLOCK_SECOND * start_offset * (tsch_timing[tsch_ts_timeslot_length] / 1000)) / 1000);
   ctimer_set(&install_schedule_timer, (CLOCK_SECOND * start_offset * (tsch_timing[tsch_ts_timeslot_length] / 1000)) / 1000, install_schedule, NULL);
 }
 
@@ -563,32 +563,42 @@ void prepare_link_for_metric_distribution(const linkaddr_t* dest, uint16_t times
   }
 }
 
+void convergcast_poll_neighbor(enum commands command)
+{
+  // Prepare packet for get metric command
+  mrp.flow_number = node_id;
+  mrp.packet_number = ++own_packet_number;
+  mrp.data[0] = command;
+  masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
+
+  prepare_forward_config(next_dest->etx_link, command, mrp.packet_number, 0);
+
+  prepare_link_for_metric_distribution(&next_dest->addr, node_id - 1);
+
+  LOG_ERR("Sending POLL request to %u with size %d\n", next_dest->addr.u8[NODE_ID_INDEX], masternet_len);
+  NETSTACK_NETWORK.output(&next_dest->addr);
+}
+
+void convergcast_poll_timesource()
+{
+  prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC_SEND, mrp.packet_number, 0);
+
+  prepare_link_for_metric_distribution(&tsch_queue_get_time_source()->addr, node_id - 1);
+
+  LOG_ERR("Sending ETX-Links to %u with size %d, flow_number %i, packet_num %i and retransmits = %i\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], 
+                                                                                          masternet_len, mrp.flow_number, mrp.packet_number, sent_packet_configuration.max_tx);
+  NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
+}
+
 //Depending on the state, send packets to time_source or poll a neighbor for their metric
 void handle_convergcast()
 {
   if (current_state == ST_POLL_NEIGHBOUR)
   {
-    // Prepare packet for get metric command
-    mrp.flow_number = node_id;
-    mrp.packet_number = ++own_packet_number;
-    mrp.data[0] = CM_ETX_METRIC_GET;
-    masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
-
-    prepare_forward_config(next_dest->etx_link, CM_ETX_METRIC_GET, mrp.packet_number, 0);
-
-    prepare_link_for_metric_distribution(&next_dest->addr, node_id - 1);
-
-    LOG_ERR("Sending POLL request to %u with size %d\n", next_dest->addr.u8[NODE_ID_INDEX], masternet_len);
-    NETSTACK_NETWORK.output(&next_dest->addr);
+    convergcast_poll_neighbor(CM_ETX_METRIC_GET);
   }else
   {
-    prepare_forward_config(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC_SEND, mrp.packet_number, 0);
-
-    prepare_link_for_metric_distribution(&tsch_queue_get_time_source()->addr, node_id - 1);
-
-    LOG_ERR("Sending ETX-Links to %u with size %d, flow_number %i, packet_num %i and retransmits = %i\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], 
-                                                                                            masternet_len, mrp.flow_number, mrp.packet_number, sent_packet_configuration.max_tx);
-    NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
+    convergcast_poll_timesource();
   }
 }
 
@@ -832,6 +842,44 @@ void master_schedule_difference_callback(linkaddr_t * nbr, uint8_t nbr_schedule_
   }
 }
 
+static void missing_metric_timeout(void *ptr)
+{
+  LOG_ERR("Missing metric timeout! \n");
+  int i;
+  int missing_nodes = 0;
+  int nodes_to_count = deployment_node_count;
+
+  mrp.flow_number = node_id;
+  mrp.packet_number = ++own_packet_number;
+  mrp.data[0] = CM_ETX_METRIC_MISSING;
+
+#if TESTBED == TESTBED_KIEL
+  nodes_to_count++;
+#endif
+  for(i = 1; i < nodes_to_count; i++)
+  {    
+    if(isBitSet(metric_received, i) == 0)
+    {
+      //If the metric is missing, include the missing node id into the packet
+      mrp.data[2 + missing_nodes] = i + 1;
+      missing_nodes++;
+    }
+  }
+
+  //How many nodes are missing
+  mrp.data[1] = missing_nodes;
+
+  prepare_forward_config(10, mrp.data[0] , mrp.packet_number, 0);
+
+  prepare_link_for_metric_distribution(&tsch_broadcast_address, node_id - 1);
+
+  LOG_ERR("Sending missing metric request to other nodes as bnroadcast with len %d\n", masternet_len);
+  masternet_len = minimal_routing_packet_size + missing_nodes + 2;
+  NETSTACK_NETWORK.output(&tsch_broadcast_address);
+
+  ctimer_restart(&missing_metric_timer);
+}
+
 /*---------------------------------------------------------------------------*/
 /* Depending on the state, set other flags for TSCH and MASTER */
 void handle_state_change(enum phase new_state)
@@ -975,6 +1023,12 @@ void callback_convergcast(enum phase next_state)
     LOG_ERR("handle convergcast\n");
     break;
   case ST_WAIT_FOR_SCHEDULE:
+    //As the coordinator, set a timer when polling is finished. In case metric do not arrive, start searching for missing packets
+    if(tsch_is_coordinator)
+    {
+      LOG_ERR("Starting timer for 60 sec (now clock is %d | %d)\n", clock_time(), clock_time() / CLOCK_SECOND);
+      ctimer_set(&missing_metric_timer, CLOCK_SECOND * 20, missing_metric_timeout, NULL);
+    }
     prepare_link_for_metric_distribution(&tsch_broadcast_address, node_id - 1);
     LOG_ERR("Finished polling neighbors\n");
     break;  
@@ -1206,6 +1260,74 @@ void command_input_schedule_packet(enum commands command, uint16_t len)
   NETSTACK_NETWORK.output(&tsch_broadcast_address);
 }
 
+/* Search the neighbors for missing node metrics. 1 if a neighbor is set as the next_dest. 0 otherwise
+*/
+int has_missing_node_as_nbr()
+{
+  //First check if we have any of the nodes as neighbors that are missing
+  uint8_t len = mrp.data[1];
+  uint8_t missing_metric_from_node[TSCH_QUEUE_MAX_NEIGHBOR_QUEUES];
+  memcpy(missing_metric_from_node, &mrp.data[2], len);
+
+  struct tsch_neighbor * n = tsch_queue_first_nbr();
+  while(n != NULL)
+  {
+    int i;
+    for(i=0; i < len; i++)
+    {
+      LOG_ERR("looking at node %d and missing node %d\n", n->addr.u8[NODE_ID_INDEX], missing_metric_from_node[i]);
+      //If this neighbor is one of the missing nodes, we need to poll him
+      if(n->addr.u8[NODE_ID_INDEX] == missing_metric_from_node[i])
+      {
+        if(next_dest == NULL)
+        {
+          LOG_ERR("Found a neighbor %d\n", missing_metric_from_node[i]);
+          next_dest = n;
+          break;
+        }else{
+          if(n->rank < next_dest->rank)
+          {
+            LOG_ERR("Neighbor %d (rank %d) has a smaller rank than %d (rank %d). Switch\n", n->addr.u8[NODE_ID_INDEX], next_dest->addr.u8[NODE_ID_INDEX], n->rank, next_dest->rank);
+            next_dest = n;
+            break;
+          }
+        }
+      }
+    }
+    LOG_ERR("looking at next nbr\n");
+    n = tsch_queue_next_nbr(n);
+  }
+
+  return next_dest != NULL;
+}
+
+void command_input_missing_metric(int len)
+{
+  //As the coordinator we ignore the broadcasts. This is only a repeat of our initial message
+  if(tsch_is_coordinator)
+  {
+    return;
+  }
+
+  if(has_missing_node_as_nbr())
+  {
+    LOG_ERR("Send missing metric request\n");
+    //TODO:: how to differentiate between polls for missing metric or default polls?
+    convergcast_poll_neighbor(CM_ETX_METRIC_GET);
+  }else{
+    LOG_ERR("Forward broadcast\n");
+    mrp.flow_number = node_id;
+    mrp.packet_number = ++own_packet_number;
+
+    prepare_forward_config(10, mrp.data[0] , mrp.packet_number, 0);
+
+    prepare_link_for_metric_distribution(&tsch_broadcast_address, node_id - 1);
+
+    masternet_len = len;
+    NETSTACK_NETWORK.output(&tsch_broadcast_address);
+  }
+}
+
 /* Handle the poll from a neighbor node demanding the ETX-metric.
  * CPAN will start the gathering. Other Nodes will react and poll their neighbors.
 */
@@ -1231,6 +1353,7 @@ void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
   //While in neighbor discovery mode, flow number = node_id
   setBit(metric_received, mrp.flow_number - 1);
   print_metric(&mrp.data[COMMAND_END], mrp.flow_number, len - minimal_routing_packet_size - COMMAND_END); //-3 for the mrp flow number and packet number and -command length
+
   int i;
   int finished_nodes = 0;
   char missing_metrics[100];
@@ -1250,10 +1373,18 @@ void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
   }
 
   LOG_ERR("Missing metric from %s\n", missing_metrics);
+  //Once all metrics are received, stop the timer to handle missing metrics and start listening for the schedule transmission
   if(finished_nodes == deployment_node_count)
   {
     LOG_ERR("ETX-Links finished!");    
+ 
+    ctimer_stop(&missing_metric_timer);
     process_start(&serial_line_schedule_input, NULL);
+  }else{
+    if(current_state == ST_WAIT_FOR_SCHEDULE)
+    {
+      ctimer_restart(&missing_metric_timer);
+    }
   }
 }
 
@@ -1364,6 +1495,7 @@ void transition_to_new_state_after_callback(packet_data_t * packet_data, int has
     break;
 
   default:
+    LOG_ERR("Dont react to callback for command %d\n", packet_data->command);
     break;
   }
 }
@@ -1379,9 +1511,23 @@ int transition_to_new_state(enum commands command, uint16_t len, const linkaddr_
   case ST_EB:
     if(command == CM_ETX_METRIC_GET)
     {
+      //When we recei requests from nodes other than the cpan, we cant reach the cpan and other nodes poll us
+      if(linkaddr_cmp(src, &tsch_queue_get_time_source()->addr) == 0)
+      {
+        tsch_queue_update_time_source(src);
+      }
       handle_state_change(ST_SEND_METRIC);
       command_input_get_metric();
-    }else{
+
+      //We only want to react to missing metric requests from nodes that are not our time source
+      //If they are our time source and the did not poll us, they are not receiving our packets.
+    // }else if(command == CM_ETX_METRIC_MISSING && linkaddr_cmp(src, &tsch_queue_get_time_source()->addr) == 0){
+    //   //In this case we did not receive a poll for our metric from our time source. 
+    //   //Change to the node that is searching for our metric and handle the gathering.
+    //   tsch_queue_update_time_source(src);
+    //   handle_state_change(ST_SEND_METRIC);
+    //   command_input_get_metric();
+    }else {
       result = -1;
     }
     break;
@@ -1396,6 +1542,7 @@ int transition_to_new_state(enum commands command, uint16_t len, const linkaddr_
       result = -1;
     }
     break;
+
     
   //Keep forwarding when packets arrive for a forward
   case ST_SEND_METRIC:
@@ -1418,6 +1565,8 @@ int transition_to_new_state(enum commands command, uint16_t len, const linkaddr_
       {
         handle_state_change(ST_SEND_METRIC);
       }
+    }else if(command == CM_ETX_METRIC_MISSING){
+      command_input_missing_metric(len);
     }else{
       result = handle_schedule_distribution_state_changes(command, len);
     }
@@ -1552,6 +1701,11 @@ void handle_callback_commands_convergcast(packet_data_t *packet_data, int ret, i
     if(current_state == ST_POLL_NEIGHBOUR && nbr->etx_metric_received)
     {
       LOG_ERR("Packet received while polling neighbor %d, dont repeat request!\n", nbr->addr.u8[NODE_ID_INDEX]);
+    }else if(current_state == ST_WAIT_FOR_SCHEDULE && packet_data->command == CM_ETX_METRIC_GET){
+      //TODOO wenn ich requests sende muss CM_ETX_METRIC_GEt drine stehen. aktuell wird ein POLL gesendet und der Command ist MISSING
+      LOG_ERR("Handle poll again while missing metric\n");
+      convergcast_poll_neighbor(CM_ETX_METRIC_GET);
+      return;
     }else{
       memset(&mrp, 0, sizeof(mrp));
       memcpy(&mrp, packetbuf_dataptr() + packet_data->hdr_len, packetbuf_datalen() - packet_data->hdr_len);

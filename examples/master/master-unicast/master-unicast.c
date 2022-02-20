@@ -61,7 +61,6 @@ PROCESS_THREAD(master_unicast_process, ev, data)
   do {
       PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
       etimer_reset(&periodic_timer);
-      printf("waiting to send...\n");
   } while(!master_routing_configured());
 
   if (node_is_sender()){
@@ -82,7 +81,6 @@ PROCESS_THREAD(master_unicast_process, ev, data)
       }
 
       //success = 
-      printf("send data\n");
       master_routing_sendto(&payload, MASTER_PAYLOAD_LENGTH, own_receiver);
       //LOG_INFO("Success: %u", success);
       etimer_reset(&periodic_timer);
