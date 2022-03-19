@@ -235,5 +235,8 @@ extern uint8_t tsch_eb_active;
 extern uint8_t tsch_change_time_source_active;
 extern uint8_t cycles_since_last_timesource_eb; //This variable is incremented each cycle (when a node sends an eb) and reset once we receive an eb from the time source
 
+int print_eb_received;
+int print_eb_sent;
+
 #endif /* __TSCH_H__ */
 /** @} */

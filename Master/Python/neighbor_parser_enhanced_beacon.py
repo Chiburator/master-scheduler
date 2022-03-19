@@ -12,10 +12,12 @@ class Parser_EB(object):
 
   def __init__(self, valid_node_ids, folder_path, filename=None, max_etx_bound=None, min_rssi_bound=None):
     self.valid_node_ids = valid_node_ids
-    if folder_path[-1] == '/':
-      self.folder = folder_path
-    else:
-      self.folder = folder_path + '/'
+
+    if(folder_path):
+      if folder_path[-1] == '/':
+        self.folder = folder_path
+      else:
+        self.folder = folder_path + '/'
     self.filename = filename
     self.max_etx_bound = max_etx_bound
     self.min_rssi_bound = min_rssi_bound
@@ -25,19 +27,19 @@ class Parser_EB(object):
     self.schedule_finished = False
 
   def match_neighbor_data(self, line):
-    match = re_search(r'ETX-Links - FROM (\d); ((\d:\d{1,3}.\d,? ?)+)', line)  # ETX-Links - FROM 1; 4:1.2, 3:1.2, 2:2.0, 4:2.2
+    match = re_search(r'ETX-Links - FROM (\d+); ((\d+:\d{1,3}.\d,? ?)+)', line)  # ETX-Links - FROM 1; 4:1.2, 3:1.2, 2:2.0, 4:2.2
     if match:
       receiver = int(match.group(1))  # == node_id
 
       sender_and_etx_values = match.group(2).strip().split(', ') # get the list os "sender:etx_value"
-
+      print('----------------------------------------------------------')
+      print("found: {}".format(match.group(2)))
+      print('----------------------------------------------------------')
       for sender_and_etx_value in sender_and_etx_values:
         sender, etx_value = sender_and_etx_value.split(':')
         self.graph_etx[int(sender)][int(receiver)] = float(etx_value)
 
   def parse_file(self, filepath):
-    print(filepath)
-
     with open(filepath, encoding="utf8", errors='ignore') as f:
       self.parse_graphs.append({})
       for line in f:

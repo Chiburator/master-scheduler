@@ -312,14 +312,12 @@ class Contiki_schedule(object):
     output_file_test = open(output_file_path, 'wb')
 
     slotframe_length = len(self.schedule.schedule[0]) + len(self.node_ids)
-    print("slotframe length + nodes {}".format(slotframe_length));
 
     if slotframe_length < minimal_schedule_length:
       slotframe_length = minimal_schedule_length
     if slotframe_length % 2 == 0: # if even
       slotframe_length += 1
 
-    print("slotframe length {}".format(slotframe_length));
     #schedule length anf slotframes
     output_file_test.write(c_uint8(slotframe_length))
     output_file_test.write(c_uint8(len(self.schedule.flows)))
@@ -372,14 +370,16 @@ class Contiki_schedule(object):
     for node_id in [*self.node_schedule]:
       #which node this schedule is for
       output_file_test.write(c_uint8(node_id-1))
-
+      print("node {}".format(node_id - 1))
       sending_flow_of_node = self.get_flow_from_sender(node_id)
       if sending_flow_of_node:
         output_file_test.write(c_uint8(sending_flow_of_node.flow_number))
         output_file_test.write(c_uint8(sending_flow_of_node.destination))
+        print("flow_number {} and destination {}".format(sending_flow_of_node.flow_number, sending_flow_of_node.destination))
       else:
         #if 0 is at own_transmission_flow -> we have no flow and no receiver
         output_file_test.write(c_uint8(0))
+        print("own_transmission_flow = 0")
 
       links = self.sorted_list_of_links(node_id)
       if len(links) > max_number_links_per_node:
@@ -387,11 +387,12 @@ class Contiki_schedule(object):
 
       output_file_test.write(c_uint8(len(links)))
 
+
       last_neighbor = None
       change_neighbor_on_link_index = []
       forward_to = []
       participating_flows_as_sender = []
-
+      string_out = ""
       #Links are calculated here. (cha_idx too)
       for link_index, link in enumerate(links):
         if link.neighbor != last_neighbor:
@@ -404,22 +405,33 @@ class Contiki_schedule(object):
         output_file_test.write(c_uint8(link.timeslot))
         output_file_test.write(c_uint8(link.channel))
 
+        #print("link.flow_number {}".format(link.flow_number))
+        #print("link.link_option {}".format(link.link_option))
+        #print("link.timeslot {}".format(link.timeslot))
+        #print("link.channel {}".format(link.channel))
+        string_out += " {} {} {} {},".format(link.flow_number, link.link_option, link.timeslot, link.channel)
+
         if link.link_option != Link_options.receive.value: # not a receive-only link
           forward_to.append( (link.flow_number, link.neighbor) )
           if link.flow_number not in participating_flows_as_sender:
             participating_flows_as_sender.append(link.flow_number)
-
+      print("Flow, Option, Slot, Channel")
+      print("len {} = {}".format(len(links), string_out))
       forward_to = list(dict.fromkeys(forward_to))
-
+      string_out = ""
       forward_to = dict(forward_to)
       for idx in range(1, num_of_flows + 1):
         #map from 0 -> MASTER_NUM_FLOW dest if idx in forward_to else 0
         #can be memcpy'ied directly in c
         if(idx in forward_to):
           output_file_test.write(c_uint8(forward_to[idx]))
+          string_out += " {}".format(forward_to[idx])
         else:
           output_file_test.write(c_uint8(0))
+          string_out += " {}".format(0)
 
+      print("Forward_to = {}".format(string_out))
+      string_out = ""
       counter = 0;
       for flow_pos in range(1, num_of_flows + 1):
         if flow_pos in participating_flows_as_sender:
@@ -427,16 +439,18 @@ class Contiki_schedule(object):
           if node_id in flow.max_transmissions:
             counter += 1
             output_file_test.write(c_uint8(flow.max_transmissions[node_id]))
+            string_out += " {}".format(flow.max_transmissions[node_id])
           else:
             output_file_test.write(c_uint8(0))
+            string_out += " {}".format(0)
         else:
           output_file_test.write(c_uint8(0))
+          string_out += " {}".format(0)
 
-      #output_file_test.write(c_uint8(255))
-
+      print("max_transmissions = {}".format(string_out))
     output_file_test.close()
 
     try:
-      upload_schedule.upload_schedule("MeinTest.bin", "raspi08", 50000)
+      upload_schedule.upload_schedule_kiel(output_file_path, "raspi08", 50000, "KIEL")
     except:
       print("Could not upload schedule")

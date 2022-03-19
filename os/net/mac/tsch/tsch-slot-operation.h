@@ -86,7 +86,13 @@
 #ifdef TSCH_CALLBACK_DO_NACK
 int TSCH_CALLBACK_DO_NACK(struct tsch_link *link, linkaddr_t *src, linkaddr_t *dst);
 #endif
-
+int test_stop();
+int stop;
+int log_send_packets;
+int log_received_paaaaaackets;
+int use_unicast_ies;
+int log_asn;
+PT_THREAD(setUploadDone(struct pt *pt));
 /************ Types ***********/
 
 /* Stores data about an incoming packet */

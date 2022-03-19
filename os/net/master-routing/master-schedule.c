@@ -7,10 +7,11 @@
  */
 #include "contiki.h"
 #include "master-schedule.h"
+#include "tsch-slot-operation.h"
 #include "dev/serial-line.h"
 #include "os/storage/cfs/cfs.h"
 #include "os/storage/cfs/cfs-coffee.h"
-//#include "cpu/msp430/dev/uart0.h"
+
 #define FILENAME "meinTest.bin"
 /* Log configuration */
 #include "sys/log.h"
@@ -20,6 +21,7 @@
 PROCESS(serial_line_schedule_input, "Master scheduler serial line input");
 
 static masternet_schedule_loaded schedule_loaded_callback = NULL;
+uint8_t schedule_loading = 1;
 
 uint8_t schedule_index;
 int fd;
@@ -96,7 +98,7 @@ void write_to_flash(uint8_t * data)
   }
 
   total_bytes_written += r;
-  LOG_ERR("Writting bytes %d \n", total_bytes_written);
+  LOG_ERR("Total bytes writen so far: %d \n", total_bytes_written);
 }
 
 void close_file()
@@ -172,23 +174,11 @@ void read_file()
     count_bytes_read += cfs_read(fd, &schedules[idx].links_len, 1);
     count_bytes_read += cfs_read(fd, &schedules[idx].links, schedules[idx].links_len * sizeof(scheduled_link_t));
     count_bytes_to_be_read += 1 + schedules[idx].links_len * sizeof(scheduled_link_t);
+
     //Read MASTER_NUM_FLOW flow_forwards
     count_bytes_read += cfs_read(fd, &schedules[idx].flow_forwards, 8);
     count_bytes_to_be_read += 8;
-    //TODO:: Read 2*MASTER_NUM_FLOW cha_idx_to_dest
-    //r = cfs_read(fd, &schedules[idx].cha_idx_to_dest, 8*2);
-    //uint8_t len = 255;
-    //int i;
 
-    // uint8_t pos = 0;
-    // count_bytes_read += cfs_read(fd, &len, 1);
-    // count_bytes_to_be_read++;
-    // for(i = 0; i < len; i+=2)
-    // {
-    //   count_bytes_read += cfs_read(fd, &pos, 1);
-    //   count_bytes_read += cfs_read(fd, &schedules[idx].cha_idx_to_dest[pos], 1);
-    //   count_bytes_to_be_read += 2;
-    // }
     //Read MASTER_NUM_FLOW max_transmission
     count_bytes_read += cfs_read(fd, &schedules[idx].max_transmission, 8);
     count_bytes_to_be_read += 8;
@@ -200,64 +190,65 @@ void read_file()
     }
 
     total_bytes_written -= count_bytes_read;
-    LOG_ERR("Wrote %d for idx %d, left %d\n", count_bytes_read, idx, total_bytes_written);
+    LOG_ERR("Wrote %d for idx %d, left %d\n", count_bytes_read, idx + 1, total_bytes_written);
   }
 
   total_bytes_written = 0;
   cfs_close(fd);
 }
 
-void show_bytes()
+void show_bytes(int id)
 {
   int i;
   char string[360] = {0};
   int string_offset = 0;
 
-  if(idx_test >= 4)
-  {
-    idx_test = 0;
-  }
-  string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.schedule_length);
-  string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.slot_frames);
-  printf("schedule_length and slot_frames = %s for node %d\n", string, idx_test + 1);
+  // if(idx_test >= 4)
+  // {
+  //   idx_test = 0;
+  // }
+  idx_test = id - 1;
+  // string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.schedule_length);
+  // string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.slot_frames);
+  // printf("schedule_length and slot_frames = %s for node %d\n", string, idx_test + 1);
 
-  memset(string, 0, 360);
-  string_offset = 0;
-  for(i = 0; i < 8; i++)
-  {
-    string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.sender_of_flow[i]);
-  }
-  printf("sender_of_flow = %s\n", string);
+  // memset(string, 0, 360);
+  // string_offset = 0;
+  // for(i = 0; i < 8; i++)
+  // {
+  //   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.sender_of_flow[i]);
+  // }
+  // printf("sender_of_flow = %s\n", string);
 
-  memset(string, 0, 360);
-  string_offset = 0;
-  for(i = 0; i < 8; i++)
-  {
-    string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.receiver_of_flow[i]);
-  }
-  printf("receiver_of_flow = %s\n", string);
+  // memset(string, 0, 360);
+  // string_offset = 0;
+  // for(i = 0; i < 8; i++)
+  // {
+  //   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.receiver_of_flow[i]);
+  // }
+  // printf("receiver_of_flow = %s\n", string);
 
-  memset(string, 0, 360);
-  string_offset = 0;
-  for(i = 0; i < 8; i++)
-  {
-    string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.first_tx_slot_in_flow[i]);
-  }
-  printf("first_tx_slot_in_flow = %s\n", string);
+  // memset(string, 0, 360);
+  // string_offset = 0;
+  // for(i = 0; i < 8; i++)
+  // {
+  //   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.first_tx_slot_in_flow[i]);
+  // }
+  // printf("first_tx_slot_in_flow = %s\n", string);
 
-  memset(string, 0, 360);
-  string_offset = 0;
-  for(i = 0; i < 8; i++)
-  {
-    string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.last_tx_slot_in_flow[i]);
-  }
-  printf("last_tx_slot_in_flow = %s\n", string);
+  // memset(string, 0, 360);
+  // string_offset = 0;
+  // for(i = 0; i < 8; i++)
+  // {
+  //   string_offset += sprintf(&string[string_offset], "%i ", (int) schedule_config.last_tx_slot_in_flow[i]);
+  // }
+  // printf("last_tx_slot_in_flow = %s\n", string);
 
   memset(string, 0, 360);
   string_offset = 0;
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].own_transmission_flow);
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].own_receiver);
-  printf("own_transmission_flow and own_receiver = %s\n", string);
+  printf("Node %i has own_transmission_flow and own_receiver = %s\n",idx_test + 1, string);
 
   memset(string, 0, 360);
   string_offset = 0;
@@ -285,19 +276,21 @@ void show_bytes()
   printf("%d Links with links = %s\n", schedules[idx_test].links_len, string);
   idx_test++;
 }
-
+static struct pt test_pt;
+//static struct ctimer testctimer;
 PROCESS_THREAD(serial_line_schedule_input, ev, data)
 {
   PROCESS_BEGIN();
+  LOG_ERR("Started listening\n");
   schedule_index = 0;
   fd = 0;
   total_bytes_written = 0;
   idx_test= 0;
-  uint8_t schedule_loaded = 0;
 
-  while(schedule_loaded != 1) {
+  while(schedule_loading) {
     PROCESS_YIELD();
     if(ev == serial_line_event_message) {
+      LOG_ERR("Received input %s\n", (uint8_t *)data);
       int current_bytes = total_bytes_written;
     
       uint8_t message_prefix = asciiHex_to_int(data);
@@ -305,19 +298,40 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
       switch ((int)message_prefix)
       {
       case MESSAGE_BEGIN:
+        printf("Message start\n");
         open_file();
         write_to_flash((uint8_t *)(data + 2));
         break;
       case MESSAGE_CONTINUE:
+        printf("Message continues\n");
         write_to_flash((uint8_t *)(data + 2));
         break;
       case MESSAGE_END:
+        printf("Message end\n");
         write_to_flash((uint8_t *)(data + 2));
         read_file();
+
+        int i;
+        for(i = 1; i <= 21; i++)
+        {
+          if(i == 11)
+          {
+            continue;
+          }
+          
+          show_bytes(i);
+        }
+
         if(schedule_loaded_callback != NULL)
         {
+          // testbed dcube gratz (wie wird dort ein upload gemacht?)
+          // multicore statt single core für dikussion wegen dem problem
+          static struct pt child_pt;
+          PT_SPAWN(&test_pt, &child_pt, setUploadDone(&child_pt));
+          printf("Finish reading\n");
+          //ctimer_set(&testctimer, CLOCK_SECOND, (void (*) (void*))schedule_loaded_callback, NULL);
           schedule_loaded_callback();
-          schedule_loaded = 1;
+          schedule_loading = 0;
         }
         break;
       default:
@@ -327,6 +341,7 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
       LOG_ERR("received data. Read %d, total bytes written now %d\n", total_bytes_written - current_bytes, total_bytes_written);
     }
   }
+
   LOG_ERR("Finished process serial input\n");
   PROCESS_END();
 }

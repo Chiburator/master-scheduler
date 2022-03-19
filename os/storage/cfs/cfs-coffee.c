@@ -1103,14 +1103,14 @@ cfs_read(int fd, void *buf, unsigned size)
 
   fdp = &coffee_fd_set[fd];
   file = fdp->file;
-  printf("cfs_read CFS_COFFEE_IO_ENSURE_READ_LENGTH = %i\n", CFS_COFFEE_IO_ENSURE_READ_LENGTH);
+ // printf("cfs_read CFS_COFFEE_IO_ENSURE_READ_LENGTH = %i\n", CFS_COFFEE_IO_ENSURE_READ_LENGTH);
   if(fdp->io_flags & CFS_COFFEE_IO_ENSURE_READ_LENGTH) {
     while(fdp->offset + size > file->end) {
-      printf("cfs_read inside CFS_COFFE and setting unused byte = %i to 0\n", size);
+     // printf("cfs_read inside CFS_COFFE and setting unused byte = %i to 0\n", size);
       ((char *)buf)[--size] = '\0';
     }
   } else if(fdp->offset + size > file->end) {
-    printf("cfs_read size(%i) + offset (%i) too big. calc size again for end = %i \n", size, (int) fdp->offset, (int) file->end);
+   // printf("cfs_read size(%i) + offset (%i) too big. calc size again for end = %i \n", size, (int) fdp->offset, (int) file->end);
     size = file->end - fdp->offset;
   }
 
@@ -1118,7 +1118,7 @@ cfs_read(int fd, void *buf, unsigned size)
   if(!FILE_MODIFIED(file)) {
     COFFEE_READ(buf, size, absolute_offset(file->page, fdp->offset));
     fdp->offset += size;
-    printf("cfs_read read directly from file with size = %i\n", size);
+  //  printf("cfs_read read directly from file with size = %i\n", size);
     return size;
   }
 

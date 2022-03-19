@@ -136,7 +136,6 @@ class Flow(object):
         for participants in participant_lists:
           self.cells.append(Cell(self.flow_number, *participants))
     self.length = len(self.cells)
-    print("cell length {}".format(self.length))
 
 
   def output_flow_path(self):

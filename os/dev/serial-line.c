@@ -61,7 +61,6 @@ PROCESS(serial_line_process, "Serial driver");
 process_event_t serial_line_event_message;
 
 /*---------------------------------------------------------------------------*/
-
 uint8_t asciiHex_to_int2(uint8_t *asciiHex)
 {
   if(*(asciiHex) == 0)
@@ -74,7 +73,7 @@ uint8_t asciiHex_to_int2(uint8_t *asciiHex)
 
   if(lowerNibble >= (uint8_t) 'A')
   {
-    lowerNibble = lowerNibble - (uint8_t)'A';
+    lowerNibble = lowerNibble - (uint8_t)'7';
   }else{
     lowerNibble = lowerNibble - (uint8_t)'0';
   }
@@ -82,11 +81,10 @@ uint8_t asciiHex_to_int2(uint8_t *asciiHex)
 
   if(HigherNibble >= (uint8_t) 'A')
   {
-    HigherNibble = HigherNibble - (uint8_t)'A';
+    HigherNibble = HigherNibble - (uint8_t)'7';
   }else{
     HigherNibble = HigherNibble - (uint8_t)'0';
   }
-
   
   uint8_t result = (HigherNibble << 4) + lowerNibble;
   //LOG_ERR("READTEST make %d to %d and %d to %d = %d\n",*(asciiHex), lowerNibble,  *(asciiHex + 1), HigherNibble, result);
@@ -114,8 +112,6 @@ serial_line_input_byte(unsigned char c)
       overflow = 0;;
     }
   }
-
-
   /* Wake up consumer process */
   process_poll(&serial_line_process);
   return 1;
@@ -142,33 +138,32 @@ PROCESS_THREAD(serial_line_process, ev, data)
       if(c != END) {
         if(ptr < BUFSIZE-1) {
           buf[ptr++] = (uint8_t)c;
-          //printf("!%x", c);
         } else {
           /* Ignore character (wait for EOL) */
         }
       } else {
         /* Terminate */
         buf[ptr++] = (uint8_t)'\0';
-         printf("GOT BYTES %d\n", ptr);
-        // int i;
-        // int c = 0;
-        // for(i = 0; i < ptr; i +=2)
-        // {
-        //   if(c == 20)
-        //   {
-        //     c = 0;
-        //     printf("\n");
-        //   }
-        //   if((uint8_t)buf[i] != 0)
-        //   {
-        //     printf("%x ", asciiHex_to_int2((uint8_t *)&buf[i]));
-
-        //   }else{
-        //     printf("Found delimiter \n");
-        //   }
-        //   c++;
-        // }
-        // printf("\n");
+        printf("GOT BYTES %d\n", ptr);
+        int i;
+        int c = 0;
+        for(i = 0; i < ptr; i++)
+        {
+          if(c == 20)
+          {
+            c = 0;
+            printf("\n");
+          }
+          if((uint8_t)buf[i] != 0)
+          {
+            //printf("%x ", asciiHex_to_int2((uint8_t *)&buf[i]));
+            printf("%i ", ((uint8_t *)buf)[i]);
+          }else{
+            printf("Found delimiter \n");
+          }
+          c++;
+        }
+        printf("\n");
         /* Broadcast event */
         process_post(PROCESS_BROADCAST, serial_line_event_message, buf);
 

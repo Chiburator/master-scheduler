@@ -9,10 +9,13 @@ from flow import Flow
 from scheduling_configuration import Scheduling_algorithm, Scheduling_strategies, Scheduling_window_size_algorithm
 from scheduling import Schedule
 from scheduling_contiki import Contiki_schedule
+import os
+import socket
+import time
 
 def main():
   parser = argparse.ArgumentParser(description='Scheduler')
-  parser.add_argument('-dir', '--folder', help='Folder containing neighbor discovery statistics', required=True)
+  parser.add_argument('-dir', '--folder', help='Folder containing neighbor discovery statistics', default='')
   parser.add_argument('-f', '--file', help='File in specified folder, include iff 1 file')
   parser.add_argument('-flows_f', '--flows_file', help='File of comma seperated values with to be scheduled flows, lower priority than --flows')
   parser.add_argument('-flows', '--flows', help='String of to be scheduled flows; "<from>,<to>[,<release_time>[,<deadline>]];...", default: 1,2')
@@ -41,7 +44,11 @@ def main():
   parser.add_argument('-p_sched', '--print_schedule', help='Print Schedule', action='store_true')
   args = parser.parse_args()
 
-  folder = args.folder
+  if(args.folder != ''):
+    folder = os.path.normpath(args.folder)
+  else:
+    folder = ''
+
   fixed_window_size = None
 
   if args.file:
@@ -135,7 +142,8 @@ def main():
   if args.with_contiki_schedule:
     generate_contiki_schedule = True
     if args.output_file:
-      contiki_output_file = args.output_file
+      contiki_output_file = os.path.normpath(args.output_file)
+      print(contiki_output_file)
     else:
       raise ValueError("Please specify the Contiki output file!")
 
@@ -176,18 +184,38 @@ def main():
     communications.append( (1, 2) )
 
 
-  # Parse neighbor discovery file(s)
-  # Node_IDS = list of int, folder = path to log, filename = log file, max_tx =
-  #neighbor_parser = Parser(node_ids, folder, filename, max_etx)
-  #neighbor_parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)
+  # Parse ETX-Metric received either from a log in a folder or via tcp
+  if(folder):
+    # print(neighbor_parser.graph_etx)
+    # Call new class using new form of regex
+    parser = Parser_EB(node_ids, folder, filename, max_etx)
+    if (not parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)):
+      print("Metric not finished!")
+      return
+  else:
+    timeout = time.time() + 60*5
+    log = ""
+    parser = Parser_EB(node_ids, '', '', max_etx)
+    connected = False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+      while not connected:
+        try:
+          s.connect(('raspi08', 50000))
+          connected = True
+        except:
+          time.sleep(1)
+          print(".")
 
-  #print(neighbor_parser.graph_etx)
-  #Call new class using new form of regex
-  parser = Parser_EB(node_ids, folder, filename, max_etx)
-  if(not parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)):
-    print("Metric not finished!")
-    return
-  print(parser.graph_etx)
+      message = b''
+      terminating_string = 'ETX-Links finished!'
+      while terminating_string not in log and time.time() < timeout:
+        message = s.recv(1024)
+        print(message)
+        log += message.decode(encoding='utf-8')
+
+    for line in log.splitlines():
+      print(line)
+      parser.match_neighbor_data(line)
 
   flows = []
 
@@ -205,7 +233,6 @@ def main():
     flows.append(Flow(parser.graph_etx, flow_id+1, source, destination, release_time, deadline)) # , max_sub_flow_length)
   
   schedule = Schedule(flows) # parser.graph_etx,
-  print("num channels {}, window size {}".format(num_channels, fixed_window_size))
   schedule.create(etx_power, num_channels, scheduling_algorithm, scheduling_strategy, scheduling_window_size_alg, fixed_window_size)
 
   if args.print_schedule:
@@ -213,6 +240,7 @@ def main():
 
   if generate_contiki_schedule:
     contiki_schedule = Contiki_schedule(parser.graph_etx, schedule, node_ids, network_time_source)
+    contiki_schedule.generate("test.c", contiki_minimal_schedule_length, contiki_schedule_timesource)
     contiki_schedule.generate_for_enhanced_beacon(contiki_output_file, contiki_minimal_schedule_length, contiki_schedule_timesource, with_ttl_retransmissions)
 
 

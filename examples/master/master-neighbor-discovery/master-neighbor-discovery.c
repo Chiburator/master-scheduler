@@ -9,6 +9,7 @@
 // includes
   #include "contiki.h"
   #include "net/master-routing/master-routing.h"
+  #include "dev/serial-line.h"
   #include <string.h>
 
 /* Log configuration */
@@ -19,9 +20,24 @@
 
 /*---------------------------------------------------------------------------*/
 PROCESS(master_neighbor_discovery_process, "Master neighbor discovery example");
-AUTOSTART_PROCESSES(&master_neighbor_discovery_process);
+PROCESS(serial_line_schedule_inputt, "Master scheduler serial line input");
+AUTOSTART_PROCESSES(&master_neighbor_discovery_process, &serial_line_schedule_inputt);
 
-//PROCESS(test_serial, "Serial line test process");
+PROCESS_THREAD(serial_line_schedule_inputt, ev, data)
+{
+  PROCESS_BEGIN();
+  printf("Started listening\n");
+
+  while(1) {
+    PROCESS_YIELD();
+    if(ev == serial_line_event_message) {
+      LOG_ERR("received line: %s\n", (char *)data);
+    }
+  }
+
+  PROCESS_END();
+}
+
 
 /*---------------------------------------------------------------------------*/
 // void input_callback(const void *data, uint16_t len,

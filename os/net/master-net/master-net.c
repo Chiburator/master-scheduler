@@ -69,7 +69,6 @@ static masternet_config_callback config_callback = NULL;
 static void
 init(void)
 {
-  LOG_INFO("init\n");
   current_input_callback = NULL;
 }
 /*--------------------------------------------------------------------*/
@@ -89,25 +88,19 @@ input(void)
 void
 masternet_set_input_callback(masternet_input_callback callback)
 {
-  LOG_TRACE("masternet_set_input_callback \n");
   current_input_callback = callback;
-  LOG_TRACE_RETURN("masternet_set_input_callback \n");
 }
 /*--------------------------------------------------------------------*/
 void
 masternet_set_output_callback(mac_callback_t callback)
 {
-  LOG_TRACE("masternet_set_input_callback \n");
   current_output_callback = callback;
-  LOG_TRACE_RETURN("masternet_set_input_callback \n");
 }
 /*--------------------------------------------------------------------*/
 void
 masternet_set_config_callback(masternet_config_callback callback)
 {
-  LOG_TRACE("masternet_set_config_callback \n");
   config_callback = callback;
-  LOG_TRACE_RETURN("masternet_set_config_callback \n");
 }
 /*--------------------------------------------------------------------*/
 static uint8_t
@@ -183,7 +176,7 @@ output(const linkaddr_t *dest)
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
     NETSTACK_MAC.send(current_output_callback, &packets[current_packet_index]);
-    LOG_ERR("Masternet send\n");
+    //LOG_DBG("Masternet send\n");
     return 1;
   } else {
     LOG_ERR("sending failed: %u bytes of %u possible bytes to ", masternet_len, max_payload);
@@ -191,7 +184,6 @@ output(const linkaddr_t *dest)
     LOG_ERR_("\n");
     leds_off(LEDS_YELLOW);
     packetbuf_clear();
-    LOG_TRACE_RETURN("output \n");
     return 0;
   }
   

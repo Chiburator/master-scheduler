@@ -46,8 +46,9 @@
 */
 
 #include "dev/radio.h"
- #include "dev/leds.h"
+#include "dev/leds.h"
 #include "contiki.h"
+#include "pt-sem.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "net/queuebuf.h"
@@ -132,7 +133,7 @@
 #else
 #define RTIMER_GUARD 2u
 #endif
-
+static struct rtimer slot_operation_timer;
 int test = 0;
 
 enum tsch_radio_state_on_cmd {
@@ -202,6 +203,11 @@ PT_THREAD(tsch_scan(struct pt *pt));
 /* Protothread for slot operation, called from rtimer interrupt
  * and scheduled from tsch_schedule_slot_operation */
 static PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr));
+int log_send_packets = 0;
+int log_received_paaaaaackets = 0;
+int use_unicast_ies = 1;
+int log_asn = 1;
+//static PT_THREAD(testhere(struct pt *pt, struct rtimer *t));
 static struct pt slot_operation_pt;
 /* Sub-protothreads of tsch_slot_operation */
 static PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t));
@@ -305,30 +311,32 @@ check_timer_miss(rtimer_clock_t ref_time, rtimer_clock_t offset, rtimer_clock_t 
 /* Schedule a wakeup at a specified offset from a reference time.
  * Provides basic protection against missed deadlines and timer overflows
  * A return value of zero signals a missed deadline: no rtimer was scheduled. */
+struct tsch_asn_divisor_t test_asn; 
 static uint8_t
 tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_clock_t offset, const char *str)
 {
-  //LOG_TRACE("tsch_schedule_slot_operation \n");
+  //reftime = current_slot_start
   rtimer_clock_t now = RTIMER_NOW();
   int r;
   /* Subtract RTIMER_GUARD before checking for deadline miss
    * because we can not schedule rtimer less than RTIMER_GUARD in the future */
   int missed = check_timer_miss(ref_time, offset - RTIMER_GUARD, now);
+  test_asn.val = 100;
 
   if(missed) {
-    TSCH_LOG_ADD(tsch_log_message,
-                snprintf(log->message, sizeof(log->message),
-                    "!dl-miss %s %d %d %d",
-                        str, (int)(now-ref_time), (int)offset, (int) now);
-    );
-    test = 1;
-    //LOG_TRACE("tsch_schedule_slot_operation 0\n");
+    // TSCH_LOG_ADD(tsch_log_message,
+    //             snprintf(log->message, sizeof(log->message),
+    //                 "!dl-miss %s %d %d %d",
+    //                     str, (int)(now-ref_time), (int)offset, (int) now);
+    // );
+
     return 0;
   }
   //TODO:: use TSCH_LOG_ADD to make a trace without reducing performance?
   //TSCH_LOG_ADD("slot start = %i and offset = %i \n", ref_time, offset);
   test = 0;
   ref_time += offset;
+
   r = rtimer_set(tm, ref_time, 1, (void (*)(struct rtimer *, void *))tsch_slot_operation, NULL);
   if(r != RTIMER_OK) {
            TSCH_LOG_ADD(tsch_log_message,
@@ -337,7 +345,7 @@ tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_
                         (int)now, (int)ref_time, (int)offset););
     return 0;
   }
-   //LOG_TRACE_INFO("tsch_schedule_slot_operation 1\n");
+
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -541,6 +549,7 @@ tsch_radio_off(enum tsch_radio_state_off_cmd command)
   LOG_TRACE_RETURN("tsch_radio_off \n");  
 }
 /*---------------------------------------------------------------------------*/
+
 static
 PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
 {
@@ -564,7 +573,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
   static int packet_ready = 1;
 
   PT_BEGIN(pt);
-
+  //GPIO_SET_PIN(GPIO_D_BASE, 0x04);
   TSCH_DEBUG_TX_EVENT();
   //leds_on(LEDS_GREEN);
   /* First check if we have space to store a newly dequeued packet (in case of
@@ -826,7 +835,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
     tsch_radio_off(TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT);
     if(!current_neighbor->is_broadcast)
     {
-      LOG_ERR("Transmitt try %i to dest %d done with status %d\n", current_packet->transmissions, current_link->addr.u8[NODE_ID_INDEX], mac_tx_status);
+      //LOG_ERR("Transmitt try %i to dest %d done with status %d\n", current_packet->transmissions, current_link->addr.u8[NODE_ID_INDEX], mac_tx_status);
     }
 
     current_packet->transmissions++;
@@ -864,6 +873,7 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
     printf("dequeued index -1\n");
   }
   //leds_off(LEDS_GREEN);
+  //GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   TSCH_DEBUG_TX_EVENT();
   LOG_TRACE_RETURN("PT: tsch_tx_slot \n");
   PT_END(pt);
@@ -888,6 +898,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
   static int input_queue_drop = 0;
 
   PT_BEGIN(pt);
+  //GPIO_SET_PIN(GPIO_D_BASE, 0x04);
 
   TSCH_DEBUG_RX_EVENT();
 
@@ -913,14 +924,8 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
     current_input = &input_array[input_index];
 
     /* Wait before starting to listen */
-    //TODO:: loop ? Does the protothread wait here before starting to liste and receive a package?
     TSCH_SCHEDULE_AND_YIELD(pt, t, current_slot_start, tsch_timing[tsch_ts_rx_offset] - RADIO_DELAY_BEFORE_RX, "RxBeforeListen");
     TSCH_DEBUG_RX_EVENT();
-
-    if(test)
-    {
-      LOG_ERR("Passed RxBeforeListen after the error \n");
-    }
 
     /* Start radio for at least guard time */
     tsch_radio_on(TSCH_RADIO_CMD_ON_WITHIN_TIMESLOT);
@@ -938,6 +943,11 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       //SET_PIN_ADC2;
       /* no packets on air */
       //leds_off(LEDS_GREEN);
+      // if(log_received_paaaaaackets)
+      // {
+      //   printf("Did not see a packet\n");
+      // }
+
       tsch_radio_off(TSCH_RADIO_CMD_OFF_FORCE);
     } else {
       TSCH_DEBUG_RX_EVENT();
@@ -982,33 +992,6 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
         frame_valid = header_len > 0 &&
           frame802154_check_dest_panid(&frame) &&
           frame802154_extract_linkaddr(&frame, &source_address, &destination_address);
-
-#if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-        memset(&ies, 0, sizeof(struct ieee802154_ies));
-        int total_len = 0;
-        if (frame.fcf.ie_list_present)
-        {
-          /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
-          int mic_len = 0;
-        // #if LLSEC802154_ENABLED
-        //   if (!frame_without_mic)
-        //   {
-        //     mic_len = tsch_security_mic_len(&frame);
-        //     if (buf_size < curr_len + mic_len)
-        //     {
-        //       return 0;
-        //     }
-        //   }
-        //  #endif /* LLSEC802154_ENABLED */
-          //LOG_ERR("Received packet with size %d, header len %d and payload len %d\n", current_input->len, header_len, frame.payload_len);
-          /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
-          if ((total_len = frame802154e_parse_information_elements((uint8_t *)current_input->payload + header_len, current_input->len - header_len - mic_len, &ies)) == -1)
-          {
-            LOG_ERR("! parse_ies: failed to parse IEs\n");
-          }
-          //LOG_ERR("ie len = %d, important? %d frame valid? %d\n", total_len, ies.ie_packet_important, frame_valid);
-        }
-#endif
 
 #if TSCH_RESYNC_WITH_SFD_TIMESTAMPS
         /* At the end of the reception, get an more accurate estimate of SFD arrival time */
@@ -1110,7 +1093,6 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
                 // TSCH_LOG_ADD(tsch_log_message,
                 //       snprintf(log->message, sizeof(log->message),
                 //       "ACK_sent"));
-                LOG_ERR("ACK_sent\n");
               }
             }
 
@@ -1131,6 +1113,12 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
 
             /* Add current input to ringbuf */
             ringbufindex_put(&input_ringbuf);
+
+            
+              // if(log_received_paaaaaackets)
+              // {
+              //   printf("got a packet\n");
+              // }
             //printf("r,%u\n", (uint16_t)(tsch_current_asn.ls4b));
 
             /* Log every reception */
@@ -1147,13 +1135,43 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
             //);
           }else{
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
+            memset(&ies, 0, sizeof(struct ieee802154_ies));
+            int total_len = 0;
+            if (frame.fcf.ie_list_present && use_unicast_ies)
+            {
+              /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
+              int mic_len = 0;
+            // #if LLSEC802154_ENABLED
+            //   if (!frame_without_mic)
+            //   {
+            //     mic_len = tsch_security_mic_len(&frame);
+            //     if (buf_size < curr_len + mic_len)
+            //     {
+            //       return 0;
+            //     }
+            //   }
+            //  #endif /* LLSEC802154_ENABLED */
+              //LOG_ERR("Received packet with size %d, header len %d and payload len %d\n", current_input->len, header_len, frame.payload_len);
+              /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
+              if ((total_len = frame802154e_parse_information_elements((uint8_t *)current_input->payload + header_len, current_input->len - header_len - mic_len, &ies)) == -1)
+              {
+                LOG_ERR("! parse_ies: failed to parse IEs\n");
+              }
+              //LOG_ERR("ie len = %d, important? %d frame valid? %d\n", total_len, ies.ie_packet_important, frame_valid);
+            }
+
             //In case of an important packet add it to input
-            if(!tsch_is_coordinator && total_len && frame.fcf.ie_list_present && ies.ie_packet_important)
+            if(!tsch_is_coordinator && use_unicast_ies && total_len && frame.fcf.ie_list_present && ies.ie_packet_important)
             {
               //LOG_ERR("add packet? %d %d %d\n", total_len, frame.fcf.ie_list_present, ies.ie_packet_important);
               /* Add current input to ringbuf */
               //LOG_ERR("Found an important packet\n");
               ringbufindex_put(&input_ringbuf);
+
+              // if(log_received_paaaaaackets)
+              // {
+              //   printf("got a packet\n");
+              // }
             }
 #endif
           }
@@ -1166,6 +1184,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       tsch_radio_off(TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT);
     }
 
+    //TODO: broadcast storm leads to packets for retransmits beeing not receied
     if(input_queue_drop != 0) {
       TSCH_LOG_ADD(tsch_log_message,
          snprintf(log->message, sizeof(log->message),
@@ -1174,12 +1193,43 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       input_queue_drop = 0;
     }
   }
-
+  //GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   TSCH_DEBUG_RX_EVENT();
   LOG_TRACE_RETURN("PT: tsch_rx_slot \n");
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
+int stop = 0;
+int upload_done = 0;
+int test_stop()
+{
+  stop = 1;
+  return 1;
+}
+
+//struct rtimer test_timer;
+ PT_THREAD(setUploadDone(struct pt *pt))
+{
+  PT_BEGIN(pt)
+  printf("activate slot_operation\n");
+  stop = 0;
+  upload_done = 1;
+  tsch_slot_operation_start();
+  PT_END(pt);
+}
+
+// static 
+// PT_THREAD(testhere(struct pt *pt, struct rtimer *t))
+// {
+//   TSCH_DEBUG_INTERRUPT();
+//   PT_BEGIN(pt);
+//   printf("hi");
+
+//   ctimer_set(&timer, CLOCK_SECOND, (void (*)(void *)) isUploadDOne, t);
+
+//   PT_END(pt);
+// }
+
 /* Protothread for slot operation, called from rtimer interrupt
  * and scheduled from tsch_schedule_slot_operation */
 static
@@ -1190,6 +1240,12 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
   PT_BEGIN(&slot_operation_pt);
   /* Loop over all active slots */
   while(tsch_is_associated) {
+    if(stop)
+    {
+      goto something;
+      //PT_YIELD(&slot_operation_pt);
+    }
+
     //TOGGLE_PIN_ADC6;
     if(current_link == NULL || tsch_lock_requested) { /* Skip slot operation if there is no link
                                                           or if there is a pending request for getting the lock */
@@ -1226,7 +1282,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
         }
       }*/
       /* There is no packet to send, and this link does not have Rx flag. Instead of doing
-       * nothing, switch to the backup link (has Rx flag) if any. */
+      * nothing, switch to the backup link (has Rx flag) if any. */
       if(current_packet == NULL && !(current_link->link_options & LINK_OPTION_RX) && backup_link != NULL) {
         current_link = backup_link;
         current_packet = get_packet_and_neighbor_for_link(current_link, &current_neighbor);
@@ -1260,10 +1316,10 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           //            current_packet->transmissions, current_packet->max_transmissions));
           //LOG_ERR("[    TX SLOT?!!  ] tx - %u, max_tx - %u\n", current_packet->transmissions, current_packet->max_transmissions);
           /* We have something to transmit, do the following:
-           * 1. send
-           * 2. update_backoff_state(current_neighbor)
-           * 3. post tx callback
-           **/
+          * 1. send
+          * 2. update_backoff_state(current_neighbor)
+          * 3. post tx callback
+          **/
           static struct pt slot_tx_pt;
           //printf("spawning TX\n");
           PT_SPAWN(&slot_operation_pt, &slot_tx_pt, tsch_tx_slot(&slot_tx_pt, t));
@@ -1310,7 +1366,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
             && current_link->link_options & LINK_OPTION_TX
             && current_link->link_options & LINK_OPTION_SHARED) {
           /* Decrement the backoff window for all neighbors able to transmit over
-           * this Tx, Shared link. */
+          * this Tx, Shared link. */
           tsch_queue_update_all_backoff_windows(&current_link->addr);
         }
 
@@ -1318,7 +1374,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
         current_link = tsch_schedule_get_next_active_link(&tsch_current_asn, &timeslot_diff, &backup_link);
         if(current_link == NULL) {
           /* There is no next link. Fall back to default
-           * behavior: wake up at the next slot. */
+          * behavior: wake up at the next slot. */
           timeslot_diff = 1;
         }
         /* Update ASN */
@@ -1334,6 +1390,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       } while(!tsch_schedule_slot_operation(t, prev_slot_start, time_to_next_active_slot, "main"));
     }
 
+    something:
     tsch_in_slot_operation = 0;
     //LOG_TRACE("PT: tsch_slot_operation - next slot \n");
     PT_YIELD(&slot_operation_pt);
@@ -1348,9 +1405,8 @@ void
 tsch_slot_operation_start(void)
 {
   //Hier wird ein link gequeried bis das erste mal ein Link schedule klappt
-  //TODO:: wird die methode verlassen und dann nie wieder aufgerufen?
-  //LOG_INFO("tsch_slot_operation_start \n");
-  static struct rtimer slot_operation_timer;
+
+  //static struct rtimer slot_operation_timer;
   rtimer_clock_t time_to_next_active_slot;
   rtimer_clock_t prev_slot_start;
   TSCH_DEBUG_INIT();
@@ -1364,17 +1420,13 @@ tsch_slot_operation_start(void)
       timeslot_diff = 1;
     }
     /* Update ASN */
-    TSCH_ASN_INC(tsch_current_asn, timeslot_diff);
+    TSCH_ASN_INC(tsch_current_asn, timeslot_diff);  //set the current asn to the asn of the timeslot to be scheduled
     /* Time to next wake up */
     time_to_next_active_slot = timeslot_diff * tsch_timing[tsch_ts_timeslot_length];
     /* Update current slot start */
     prev_slot_start = current_slot_start;
     current_slot_start += time_to_next_active_slot;
   } while(!tsch_schedule_slot_operation(&slot_operation_timer, prev_slot_start, time_to_next_active_slot, "assoc"));
-    TSCH_LOG_ADD(tsch_log_message,
-          snprintf(log->message, sizeof(log->message),
-             "!leaving tsch:slot_operation_start"););
-  //LOG_INFO("RETURN: tsch_slot_operation_start \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Start actual slot operation */

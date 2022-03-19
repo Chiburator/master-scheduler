@@ -527,7 +527,6 @@ int tsch_packet_create_unicast()
     return -1;
   }
 
-  //TODO:: add frame80215e_create_ie_header_list_termination_2 with 2 bytes size before the payload. then add the rest
   //Set the IE for important packets (3 bytes)
   ie_len = frame80215e_create_ie_payload_list_termination(packetbuf_dataptr() + payload_ie_hdr_len + payload_ie_len,
                                                           packetbuf_remaininglen(),

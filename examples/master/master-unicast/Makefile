@@ -14,4 +14,5 @@ MODULES += os/net/master-routing
 
 MODULES += os/services/simple-energest
 
+CLFAGS += -fno-stack-protector
 include $(CONTIKI)/Makefile.include

@@ -130,6 +130,9 @@ struct eb_stat
 NBR_TABLE(struct eb_stat, eb_stats);
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
 
+int print_eb_received = 0;
+int print_eb_sent = 0;
+
 /* TSCH channel hopping sequence */
 uint8_t tsch_hopping_sequence[TSCH_HOPPING_SEQUENCE_MAX_LEN];
 struct tsch_asn_divisor_t tsch_hopping_sequence_length;
@@ -558,16 +561,19 @@ eb_input(struct input_packet *current_input)
             eb_ies.ie_rank, tsch_rank, frame.src_addr[NODE_ID_INDEX], tsch_queue_get_time_source()->etx_link, n->etx_link, tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX], eb_ies.ie_rank + 1, tsch_queue_count_nbr());
             tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
             tsch_rank = eb_ies.ie_rank + 1;
-          }else{
-            //LOG_ERR("Got rank %d from src %d. Update to etx-link %d\n", 
-            //eb_ies.ie_rank, ((linkaddr_t *)&frame.src_addr)->u8[NODE_ID_INDEX], n->etx_link);
           }
-        }else{
-          // LOG_ERR("IF check for %d %d %d %d\n", n->addr.u8[NODE_ID_INDEX], tsch_is_coordinator == 0, (n != NULL), (n->last_eb - n->first_eb != 0));
-          // if(frame.src_addr[NODE_ID_INDEX] == 14)
-          // {
-          //   LOG_ERR("NODE 14 has %d as timesource \n", n->time_source);
-          // }
+        // if(n->rank + 1 < tsch_rank)
+        // {
+        //   tsch_queue_update_time_source((linkaddr_t *)&frame.src_addr);
+        //   tsch_rank = eb_ies.ie_rank + 1;    
+
+          else{
+            // LOG_ERR("IF check for %d %d %d %d\n", n->addr.u8[NODE_ID_INDEX], tsch_is_coordinator == 0, (n != NULL), (n->last_eb - n->first_eb != 0));
+            // if(frame.src_addr[NODE_ID_INDEX] == 14)
+            // {
+            //   LOG_ERR("NODE 14 has %d as timesource \n", n->time_source);
+            // }
+          }
         }
       }
     }
@@ -664,7 +670,7 @@ tsch_rx_process_pending()
 
       // If IE's are present, overwritte them before copying the payload into the packetbuffer
       //LOG_ERR("Is ie list present? %d\n", frame.fcf.ie_list_present);
-      if(frame.fcf.ie_list_present)
+      if(frame.fcf.ie_list_present && use_unicast_ies)
       {
       /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
           int mic_len = 0;
@@ -712,7 +718,7 @@ tsch_rx_process_pending()
     /* Remove input from ringbuf */
     ringbufindex_get(&input_ringbuf);
   }
-  LOG_TRACE_RETURN("tsch_rx_process_pending \n");
+  //printf("tsch_rx_process_pending \n");
 }
 /*---------------------------------------------------------------------------*/
 /* Pass sent packets to upper layer */
@@ -726,27 +732,6 @@ tsch_tx_process_pending(void)
   {
     struct tsch_packet *p = dequeued_array[dequeued_index];
     /* Put packet into packetbuf for packet_sent callback */
-    
-    //TODO:: parse the data correct?
-    // if(queuebuf_attr(p->qb, PACKETBUF_ATTR_MAC_METADATA))
-    // {
-    //   struct queuebuf_data *buframptr = queuebuf_load_to_ram(p->qb);
-    //   frame802154_t frame;
-    //   uint8_t ret = frame802154_parse(buframptr->data, buframptr->len, &frame);
-
-    //   struct ieee802154_ies ies;
-    //   memset(&ies, 0, sizeof(struct ieee802154_ies));
-    //   uint8_t ie_len = 0;
-    //   if ((ie_len = frame802154e_parse_information_elements(current_input->payload + ret, current_input->len - ret - mic_len, &ies)) == -1)
-    //   {
-    //     LOG_ERR("! parse_ies: failed to parse IEs\n");
-    //   }
-
-    //   LOG_ERR("Trunacte packet and set payload from %d to %d, hdr = %d\n", current_input->len, current_input->len - ie_len, ret);
-    //   current_input->len -= ie_len;
-    //   memmove(&current_input->payload[ret], &current_input->payload[ret + ie_len], current_input->len - ret);
-    // }
-
 
     queuebuf_to_packetbuf(p->qb);
     // LOG_INFO("packet sent to ");
@@ -1219,6 +1204,10 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
 #endif /* TSCH_DEBUG_PRINT */
             p->tsch_sync_ie_offset = tsch_sync_ie_offset;
             p->header_len = hdr_len;
+            // if(print_eb_sent)
+            // {
+            //   printf("send eb!\n");
+            // }
           }
         }
         leds_toggle(LEDS_RED);
@@ -1453,7 +1442,10 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   if(packetbuf_attr(PACKETBUF_ATTR_MAC_METADATA))
   {
-    tsch_packet_create_unicast();
+    if(tsch_packet_create_unicast() == -1)
+    {
+      printf("error when adding unicast");
+    }
   }
 #endif
 
@@ -1483,13 +1475,13 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(&flow_addr, max_transmissions, sent, ptr);
-      LOG_ERR("Add to flow addr\n");
+      //LOG_ERR("Add to flow addr\n");
     }
     else
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
-      LOG_ERR("Add to Nbr %d. Total packets in queue %d (this nbr %d)\n",addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count(), tsch_queue_packet_count(addr));
+      //LOG_ERR("Add to Nbr %d. Total packets in queue %d (this nbr %d)\n",addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count(), tsch_queue_packet_count(addr));
     }
     struct tsch_neighbor* n = tsch_queue_first_nbr();
 
@@ -1497,7 +1489,7 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     {
       if(ringbufindex_elements(&n->tx_ringbuf) > 0)
       {
-        LOG_ERR("Neighbor %d has %d packets in queue\n", n->addr.u8[NODE_ID_INDEX], ringbufindex_elements(&n->tx_ringbuf));
+        //LOG_ERR("Neighbor %d has %d packets in queue\n", n->addr.u8[NODE_ID_INDEX], ringbufindex_elements(&n->tx_ringbuf));
       }
       n = tsch_queue_next_nbr(n);
     }
@@ -1518,8 +1510,8 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     else
     {
       p->header_len = hdr_len;
-      LOG_INFO("send packet to ");
-      LOG_INFO_LLADDR(addr);
+      // LOG_INFO("send packet to ");
+      // LOG_INFO_LLADDR(addr);
       //LOG_INFO_(" with seqno %u, queue %u %u, len %u %u\n",
       //       tsch_packet_seqno,
       //       tsch_queue_packet_count(addr), tsch_queue_global_packet_count(),
@@ -1593,7 +1585,6 @@ packet_input(void)
 static int
 turn_on(void)
 {
-  LOG_TRACE("turn_on \n");
   if (tsch_is_initialized == 1 && tsch_is_started == 0)
   {
     tsch_is_started = 1;
@@ -1603,11 +1594,8 @@ turn_on(void)
     process_start(&tsch_send_eb_process, NULL);
     /* try to associate to a network or start one if setup as coordinator */
     process_start(&tsch_process, NULL);
-    LOG_INFO("starting as %s\n", tsch_is_coordinator ? "coordinator" : "node");
-    LOG_TRACE_RETURN("turn_on \n");
     return 1;
   }
-  LOG_TRACE_RETURN("turn_on \n");
   return 0;
 }
 /*---------------------------------------------------------------------------*/

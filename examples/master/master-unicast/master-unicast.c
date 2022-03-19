@@ -17,7 +17,7 @@
 /* Log configuration */
   #include "sys/log.h"
   #define LOG_MODULE "App"
-  #define LOG_LEVEL LOG_LEVEL_DBG
+  #define LOG_LEVEL LOG_LEVEL_INFO
 
 
 /*---------------------------------------------------------------------------*/
@@ -38,7 +38,7 @@ PROCESS_THREAD(master_unicast_process, ev, data)
   //uint8_t success;
 
   PROCESS_BEGIN();
-
+  
   // GPIO_SET_OUTPUT(GPIO_D_BASE, 0x04);
   // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
   // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
@@ -50,6 +50,7 @@ PROCESS_THREAD(master_unicast_process, ev, data)
   // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
   // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+
   /* Initialize Master */
   init_master_routing();
   master_routing_set_input_callback(input_callback);
@@ -80,14 +81,11 @@ PROCESS_THREAD(master_unicast_process, ev, data)
         payload[payload_index] = (uint8_t)(random_rand() >> 8);
       }
 
-      //success = 
       master_routing_sendto(&payload, MASTER_PAYLOAD_LENGTH, own_receiver);
-      //LOG_INFO("Success: %u", success);
       etimer_reset(&periodic_timer);
     }
   } else {
     while (1){
-      printf("not a sender");
       PROCESS_YIELD();
     }
   }
