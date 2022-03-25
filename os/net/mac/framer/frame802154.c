@@ -639,9 +639,9 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
   pf->payload = p;
 
   /* return header length if successful */
-  //if (c > len){
+  // if (c > len){
   //  printf("header_length (frame): %i\n", c);
-  //}
+  // }
   return c > len ? 0 : c;
 }
 /** \}   */

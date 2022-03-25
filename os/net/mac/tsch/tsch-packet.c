@@ -313,6 +313,7 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 
   ies.ie_schedule_version = schedule_version;
   ies.ie_schedule_packets = schedule_packets;
+  memcpy(ies.ie_schedule_received, schedule_received, 3);
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
   p = packetbuf_dataptr();
@@ -407,6 +408,18 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   }
   p += ie_len;
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
+
+  ie_len = frame80215e_create_ie_schedule_received(p,
+                                                  packetbuf_remaininglen(),
+                                                  &ies,
+                                                  3);
+  if (ie_len < 0)
+  {
+    return -1;
+  }
+  p += ie_len;
+  packetbuf_set_datalen(packetbuf_datalen() + ie_len);
+
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 #if 0

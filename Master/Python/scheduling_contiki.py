@@ -451,6 +451,6 @@ class Contiki_schedule(object):
     output_file_test.close()
 
     try:
-      upload_schedule.upload_schedule_kiel(output_file_path, "raspi08", 50000, "KIEL")
+      upload_schedule.upload_schedule_kiel(output_file_path, "raspi08", 50000)
     except:
       print("Could not upload schedule")

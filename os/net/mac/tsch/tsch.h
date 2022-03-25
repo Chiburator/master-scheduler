@@ -210,6 +210,7 @@ extern const struct mac_driver tschmac_driver;
  * Function prototype for MasterRouting callback on different schedule
 */
 typedef void (* master_routing_schedule_difference_callback)(linkaddr_t * nbr, uint8_t schedule_version, uint16_t schedule_packets);
+typedef void (* master_callback_check_received_schedules)(uint8_t *schedule_received, uint8_t len);
 
 /**
  * Set input callback for MasterRouting
@@ -217,6 +218,8 @@ typedef void (* master_routing_schedule_difference_callback)(linkaddr_t * nbr, u
  * \param callback The input callback
 */
 void tsch_set_schedule_difference_callback(master_routing_schedule_difference_callback callback);
+void tsch_set_schedule_received_callback(master_callback_check_received_schedules callback);
+void tsch_reset_schedule_received_callback();
 
 /* The the TSCH join priority */
 void tsch_set_join_priority(uint8_t jp);
@@ -237,6 +240,7 @@ extern uint8_t cycles_since_last_timesource_eb; //This variable is incremented e
 
 int print_eb_received;
 int print_eb_sent;
+extern uint8_t schedule_received[3];
 
 #endif /* __TSCH_H__ */
 /** @} */

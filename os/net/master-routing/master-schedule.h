@@ -81,10 +81,12 @@ uint8_t get_forward_dest(master_tsch_schedule_t* schedule, uint8_t flow);
 uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow);
 
 void setBit(uint32_t *bit_vector, int k);
+void setBit1Byte(uint8_t *bit_vector, int k);
 
 void clearBit(uint32_t *bit_vector, int k);
 
 uint8_t isBitSet(uint32_t *bit_vector, int k);
+uint8_t isBitSet1Byte(uint8_t *bit_vector, int k);
 
 void resetBitVector(uint32_t *bit_vector, uint8_t n);
 

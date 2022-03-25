@@ -176,7 +176,7 @@ output(const linkaddr_t *dest)
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
     NETSTACK_MAC.send(current_output_callback, &packets[current_packet_index]);
-    //LOG_DBG("Masternet send\n");
+    LOG_DBG("Masternet send to %i\n", packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[NODE_ID_INDEX]);
     return 1;
   } else {
     LOG_ERR("sending failed: %u bytes of %u possible bytes to ", masternet_len, max_payload);

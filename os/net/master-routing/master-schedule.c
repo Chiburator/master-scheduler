@@ -400,6 +400,21 @@ uint8_t isBitSet(uint32_t *bit_vector, int k)
   }
 }
 
+void setBit1Byte(uint8_t *bit_vector, int k)
+{
+  bit_vector[k/8] |= 1 << (k%8);
+}
+
+uint8_t isBitSet1Byte(uint8_t *bit_vector, int k)
+{
+  if ( (bit_vector[k/8] & (1 << (k%8) ))  ) 
+  {
+      return 1;
+  }else{
+      return 0;
+  }
+}
+
 void resetBitVector(uint32_t *bit_vector, uint8_t n)
 {
   memset(bit_vector, 0, n * sizeof(uint32_t));

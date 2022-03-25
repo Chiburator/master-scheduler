@@ -5,8 +5,8 @@
 #define MASTER_MSG_LENGTH 59
 
 #undef  TESTBED
-#define TESTBED TESTBED_COOJA
-//#define TESTBED TESTBED_KIEL
+//#define TESTBED TESTBED_COOJA
+#define TESTBED TESTBED_KIEL
 
 #undef NUM_COOJA_NODES
 #define NUM_COOJA_NODES 20
@@ -32,6 +32,7 @@
 //#define MASTER_TSCH_COORDINATOR 0x01
 //hohe last = node 12 oder 13  0x0C / 0x0D
 #define MASTER_TSCH_COORDINATOR 0x08
+#define MASTER_TSCH_DISTRIBUTOR 0x07
 
 #define LOG_CONF_LEVEL_MAC                         LOG_LEVEL_DBG
 

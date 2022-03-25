@@ -132,6 +132,7 @@ NBR_TABLE(struct eb_stat, eb_stats);
 
 int print_eb_received = 0;
 int print_eb_sent = 0;
+uint8_t schedule_received[3] = {0};
 
 /* TSCH channel hopping sequence */
 uint8_t tsch_hopping_sequence[TSCH_HOPPING_SEQUENCE_MAX_LEN];
@@ -204,12 +205,23 @@ PROCESS(tsch_send_eb_process, "send EB process");
 PROCESS(tsch_pending_events_process, "pending events process");
 
 static master_routing_schedule_difference_callback schedule_difference_callback = NULL;
+static master_callback_check_received_schedules schedule_received_callback = NULL;
 
 /* Other function prototypes */
 static void packet_input(void);
 
 /* Getters and setters */
 /*---------------------------------------------------------------------------*/
+void tsch_set_schedule_received_callback(master_callback_check_received_schedules callback)
+{
+  schedule_received_callback = callback;
+}
+
+void tsch_reset_schedule_received_callback()
+{
+  schedule_received_callback = NULL;
+}
+
 void tsch_set_schedule_difference_callback(master_routing_schedule_difference_callback callback)
 {
   LOG_TRACE("masternet_set_input_callback \n");
@@ -418,6 +430,7 @@ void tsch_schedule_keepalive_immediately(void)
   }
 }
 /*---------------------------------------------------------------------------*/
+
 static void
 eb_input(struct input_packet *current_input)
 {
@@ -487,6 +500,11 @@ eb_input(struct input_packet *current_input)
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     struct tsch_neighbor *n = tsch_queue_add_nbr((linkaddr_t *)&frame.src_addr);
     neighbor_discovery_input(&eb_ies.ie_sequence_number, n);
+
+    if(schedule_received_callback != NULL)
+    {
+      schedule_received_callback(eb_ies.ie_schedule_received, 3);
+    }
 #endif
 
                     // TSCH_LOG_ADD(tsch_log_message,
@@ -596,30 +614,11 @@ extern void neighbor_discovery_input(const uint16_t *data, struct tsch_neighbor 
     return;
   }
 
-  //Only calculate misses from second EB forward. We might have missed EB's before joining the network.
-  // if(nbr->first_eb == 0)
-  // {
-  //   nbr->first_eb = *data;
-  //   nbr->last_eb = *data;
-  //   return;
-  // }
-
-  // if(nbr->addr.u8[NODE_ID_INDEX] == 2 && linkaddr_node_addr.u8[NODE_ID_INDEX] == 16)
-  // {
-  //   LOG_ERR("metric update first %d, last %d, new packet %d and missed %d (new missed %d)", nbr->first_eb, nbr->last_eb, *data, nbr->missed_ebs, nbr->missed_ebs + (*data - nbr->last_eb) - 1);
-  //   printf(" etx now is %d \n", (int) (10 * (1.0 / (1.0 - ((float)nbr->missed_ebs / (nbr->last_eb - nbr->first_eb))))));
-  // }
-
-  // if(nbr->addr.u8[NODE_ID_INDEX] == 16 && linkaddr_node_addr.u8[NODE_ID_INDEX] == 2)
-  // {
-  //   LOG_ERR("metric update first %d, last %d, new packet %d and missed %d (new missed %d)", nbr->first_eb, nbr->last_eb, *data, nbr->missed_ebs, nbr->missed_ebs + (*data - nbr->last_eb) - 1);
-  //   printf(" etx now is %d \n", (int) (10 * (1.0 / (1.0 - ((float)nbr->missed_ebs / (nbr->last_eb - nbr->first_eb))))));
-  // }
-
   nbr->missed_ebs += (*data - (nbr->last_eb + 1));
   nbr->last_eb = *data;
+  nbr->count++;
 
-  int current_etx_link = 100 * (1.0 / (1.0 - ((float)nbr->missed_ebs / nbr->last_eb)));
+  int current_etx_link = 100 * (1.0 / ((float)nbr->count / nbr->last_eb));
   uint8_t round = 0;
   //LOG_INFO("current etx_link =%d, mb %d; lb %d; fb %d\n", current_etx_link, n->missed_ebs, n->last_eb, n->first_eb);
   if(current_etx_link % 10 > 0)
@@ -627,7 +626,7 @@ extern void neighbor_discovery_input(const uint16_t *data, struct tsch_neighbor 
     round = 1;
   }
 
-  if((current_etx_link / 10) > 255)
+  if((current_etx_link / 10) >= 255)
   {
     current_etx_link = 255;
   }else{
@@ -1141,7 +1140,7 @@ PROCESS_THREAD(tsch_process, ev, data)
 
   PROCESS_END();
 }
-
+//uint8_t print_out = 1;
 /*---------------------------------------------------------------------------*/
 /* A periodic process to send TSCH Enhanced Beacons (EB) */
 PROCESS_THREAD(tsch_send_eb_process, ev, data)
@@ -1169,7 +1168,7 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
   {
     unsigned long delay;
 
-    if (tsch_is_associated && tsch_current_eb_period > 0 && tsch_eb_active)
+    if (tsch_is_associated && tsch_current_eb_period > 0 && tsch_eb_active )// && sequence_number < 50)
     {
       /* Enqueue EB only if there isn't already one in queue */
       if (tsch_queue_packet_count(&tsch_eb_address) == 0)
@@ -1212,7 +1211,23 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
         }
         leds_toggle(LEDS_RED);
       }
+    }else{
+    //   if(sequence_number == 50 && print_out)
+    //   {
+    //     print_out = 0;
+    //     struct tsch_neighbor * n = tsch_queue_first_nbr();
+    //     printf("current eb = %i\n", sequence_number);
+    //     while(n != NULL)
+    //     {
+    //       printf("ETX:%i = %i, last %i, counted %i\n", n->addr.u8[NODE_ID_INDEX], n->etx_link, n->last_eb, n->count);
+    //       n = tsch_queue_next_nbr(n);
+    //       tsch_eb_active = 0;
+    //     }
+    //   }
     }
+
+
+
     if (tsch_current_eb_period > 0)
     {
       /* Next EB transmission with a random delay
@@ -1475,24 +1490,24 @@ send_packet(mac_callback_t sent, void *ptr) // HERE called by nullnet/me
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(&flow_addr, max_transmissions, sent, ptr);
-      //LOG_ERR("Add to flow addr\n");
+      LOG_ERR("Add to flow addr\n");
     }
     else
     {
       /* Enqueue packet */
       p = tsch_queue_add_packet(addr, max_transmissions, sent, ptr);
-      //LOG_ERR("Add to Nbr %d. Total packets in queue %d (this nbr %d)\n",addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count(), tsch_queue_packet_count(addr));
+      LOG_ERR("Add to Nbr %d. Total packets in queue %d (this nbr %d)\n",addr->u8[NODE_ID_INDEX], tsch_queue_global_packet_count(), tsch_queue_packet_count(addr));
     }
-    struct tsch_neighbor* n = tsch_queue_first_nbr();
+    //struct tsch_neighbor* n = tsch_queue_first_nbr();
 
-    while(n != NULL)
-    {
-      if(ringbufindex_elements(&n->tx_ringbuf) > 0)
-      {
-        //LOG_ERR("Neighbor %d has %d packets in queue\n", n->addr.u8[NODE_ID_INDEX], ringbufindex_elements(&n->tx_ringbuf));
-      }
-      n = tsch_queue_next_nbr(n);
-    }
+    // while(n != NULL)
+    // {
+    //   if(ringbufindex_elements(&n->tx_ringbuf) > 0)
+    //   {
+    //     //LOG_ERR("Neighbor %d has %d packets in queue\n", n->addr.u8[NODE_ID_INDEX], ringbufindex_elements(&n->tx_ringbuf));
+    //   }
+    //   n = tsch_queue_next_nbr(n);
+    // }
 #else
     //Create a tsch_packet from the packetbuffer and add it to queue
     /* Enqueue packet */

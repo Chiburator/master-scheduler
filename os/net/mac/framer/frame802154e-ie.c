@@ -82,6 +82,7 @@ enum ieee802154e_mlme_short_subie_id {
   MLME_SHORT_IE_TIME_SOURCE,
   MLME_SHORT_IE_SCHEDULE_VERSION,
   MLME_SHORT_IE_SCHEDULE_PACKETS,
+  MLME_SHORT_IE_SCHEDULE_RECEIVED,
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 };
 
@@ -429,6 +430,23 @@ frame80215e_create_ie_schedule_packets(uint8_t *buf, int len,
   create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_SCHEDULE_PACKETS, ie_len);
   return 2 + ie_len;
 }
+
+int
+frame80215e_create_ie_schedule_received(uint8_t *buf, int len,
+    struct ieee802154_ies *ies, uint8_t array_len)
+{
+  if(len < 2 + array_len || ies == NULL) {
+    return -1;
+  }
+  int i;
+  for(i=0; i < array_len; i++)
+  {
+    buf[2 + i] = ies->ie_schedule_received[i];
+  }
+
+  create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_SCHEDULE_RECEIVED, array_len);
+  return 2 + array_len;
+}
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
 /* Parse a header IE */
@@ -570,6 +588,13 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
       if (len == 2){
         if (ies != NULL){
           READ16(buf, ies->ie_schedule_packets);
+        }
+        return len;
+      }
+      case MLME_SHORT_IE_SCHEDULE_RECEIVED:
+      if(len == 3){
+        if(ies != NULL){
+          memcpy(ies->ie_schedule_received, buf, 3);
         }
         return len;
       }

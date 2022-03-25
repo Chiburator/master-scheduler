@@ -158,6 +158,7 @@ struct tsch_neighbor {
   uint8_t time_source; /* is this neighbor a time source? */
   uint16_t first_eb;
   uint16_t last_eb;
+  uint16_t count;
   uint16_t missed_ebs;
   uint8_t etx_link;
   uint8_t etx_metric_received;

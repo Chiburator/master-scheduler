@@ -410,6 +410,7 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
           p = actual_packet;
           n = actual_current_neighbor;
           skip_ttl = 1;
+          //printf("skip ttl. send to %i", n->addr.u8[NODE_ID_INDEX]);
         }
 
 #         if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_TTL_BASED_RETRANSMISSIONS//DONELIV
@@ -476,7 +477,6 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
     *target_neighbor = n;
   }
   //leds_off(LEDS_BLUE);
-  LOG_TRACE_RETURN("get_packet_and_neighbor_for_link \n");
   return p;
 }
 /*---------------------------------------------------------------------------*/

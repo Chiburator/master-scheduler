@@ -55,7 +55,7 @@
 #define TSCH_CONF_FLOW_BASED_QUEUES 1 //default setting
 #endif
 #ifndef TSCH_CONF_TTL_BASED_RETRANSMISSIONS
-#define TSCH_CONF_TTL_BASED_RETRANSMISSIONS 0 //default setting
+#define TSCH_CONF_TTL_BASED_RETRANSMISSIONS 1 //default setting
 #endif
 
 #ifndef MASTER_TSCH_COORDINATOR
@@ -67,7 +67,7 @@
 #endif
 
 #ifndef TSCH_BEACON_AMOUNT
-#define TSCH_BEACON_AMOUNT 150
+#define TSCH_BEACON_AMOUNT 300
 #endif
 
 // neighbor discovery during runtime:

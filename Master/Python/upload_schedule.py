@@ -6,7 +6,7 @@ C_MESSSAGE_BEGIN = b'\x00'
 C_MESSSAGE_CONTINUE = b'\x01'
 C_MESSSAGE_END = b'\x02'
 C_MESSAGE_LINE_END = b'\x0a'
-bytes_to_send = 40
+bytes_to_send = 50
 bytes_to_write = bytes_to_send - 1
 
 int_to_hex = {10: 'A', 11:'B', 12:'C', 13:'D', 14:'E', 15:'F'}
@@ -27,15 +27,15 @@ def byte_to_ascii(byte):
                                               lowerNibble=lowerNibble)
   return char
 
-def upload_schedule_kiel(filepath, host, port, system):
-  time.sleep(1/20)
-  print("Lets go")
-  bytes_written = 0
+def upload_schedule_kiel(filepath, host, port):
+  time.sleep(1/100)
+
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((host, port))
     with open(filepath, "rb") as file:
       file.seek(0, 2)
-      print("len of file {}".format(file.tell()))
+      total_bytes = file.tell()
+      print("len of file {}".format(total_bytes))
       file.seek(0, 0)
       bytes = C_MESSSAGE_BEGIN + file.read(bytes_to_write)
 
@@ -55,8 +55,7 @@ def upload_schedule_kiel(filepath, host, port, system):
         if (not bytes):
           continue
 
-        #TODO wenn die letzte zeile = bytes_to_write, wird immer continue gesendet und nicht END
-        if (len(bytes) == bytes_to_write and file.tell() > 0):
+        if (len(bytes) != bytes_to_write or file.tell() == total_bytes):
           bytes = C_MESSSAGE_CONTINUE + bytes
         else:
           bytes = C_MESSSAGE_END + bytes
@@ -69,7 +68,7 @@ def upload_schedule_kiel(filepath, host, port, system):
     #  print(message)
     #s.close()
 
-def upload_schedule_cooja(filepath, host, port, system):
+def upload_schedule_cooja(filepath, host, port):
   time.sleep(2)
   print("Lets go")
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -88,12 +87,9 @@ def upload_schedule_cooja(filepath, host, port, system):
           bytes_to_send += byte_to_ascii(byte)
 
         print(bytes)
-        if(system == "KIEL"):
-          print(bytes_to_send.encode('utf-8') + C_MESSAGE_LINE_END)
-          s.send(bytes_to_send.encode('utf-8') + C_MESSAGE_LINE_END)
-        else:
-          print(bytes_to_send.encode('utf-8'))
-          s.send(bytes_to_send.encode('utf-8'))
+
+        print(bytes_to_send.encode('utf-8'))
+        s.send(bytes_to_send.encode('utf-8'))
 
         bytes = file.read(bytes_to_write)
 
@@ -115,4 +111,4 @@ def upload_schedule_cooja(filepath, host, port, system):
     #s.close()
 
 if __name__ == '__main__':
-  upload_schedule_cooja("meinTest.bin", '127.0.0.1', 60008, "Cooja")
+  upload_schedule_cooja("meinTest.bin", '127.0.0.1', 60008)

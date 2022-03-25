@@ -26,7 +26,7 @@ def main():
   parser.add_argument('-strat', '--strategy', help='(Re)Transmission strategy, default: sliding', choices=['no', 'slot', 'sliding'])
   parser.add_argument('-salg', '--sliding_algorithm', help='Sliding Windows algorithm, default: etx_link_based',
                       choices=['etx_based', 'etx_based_doubled', 'etx_based_trippled',
-                               'etx_link_based', 'etx_link_based_doubled', 'etx_link_based_trippled', 'fixed']
+                               'etx_link_based', 'etx_link_based_doubled', 'etx_link_based_trippled', 'fixed'] #use trippled for high precision
                      )
   parser.add_argument('-wsize', '--fixed_window_size', help="Fixed window size for sliding algorithm 'fixed' (minimum = 2), default: 5", type=int)
   parser.add_argument('-etx', '--etx_power', help='ETX-Power, default: 2', type=int, choices=[1, 2, 3])
