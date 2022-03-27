@@ -240,6 +240,7 @@ void tsch_queue_init(void);
 void tsch_queue_update_time_source_rank(const uint8_t time_source_rank);
 void tsch_queue_update_neighbour_rank_and_time_source(const linkaddr_t *neighbour_addr, const uint8_t time_source_rank, const uint8_t time_source);
 uint8_t tsch_queue_is_packet_in_nbr_queue(struct tsch_neighbor *nbr, uint8_t packet_number);
+struct tsch_neighbor * tsch_queue_get_nbr_by_node_id(const uint8_t node_id);
 #endif
 
 #endif /* __TSCH_QUEUE_H__ */

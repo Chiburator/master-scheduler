@@ -144,26 +144,26 @@ PROCESS_THREAD(serial_line_process, ev, data)
       } else {
         /* Terminate */
         buf[ptr++] = (uint8_t)'\0';
-        printf("GOT BYTES %d\n", ptr);
-        int i;
-        int c = 0;
-        for(i = 0; i < ptr; i++)
-        {
-          if(c == 20)
-          {
-            c = 0;
-            printf("\n");
-          }
-          if((uint8_t)buf[i] != 0)
-          {
-            //printf("%x ", asciiHex_to_int2((uint8_t *)&buf[i]));
-            printf("%i ", ((uint8_t *)buf)[i]);
-          }else{
-            printf("Found delimiter \n");
-          }
-          c++;
-        }
-        printf("\n");
+        // printf("GOT BYTES %d\n", ptr);
+        // int i;
+        // int c = 0;
+        // for(i = 0; i < ptr; i++)
+        // {
+        //   if(c == 20)
+        //   {
+        //     c = 0;
+        //     printf("\n");
+        //   }
+        //   if((uint8_t)buf[i] != 0)
+        //   {
+        //     //printf("%x ", asciiHex_to_int2((uint8_t *)&buf[i]));
+        //     printf("%i ", ((uint8_t *)buf)[i]);
+        //   }else{
+        //     printf("Found delimiter \n");
+        //   }
+        //   c++;
+        // }
+        // printf("\n");
         /* Broadcast event */
         process_post(PROCESS_BROADCAST, serial_line_event_message, buf);
 

@@ -62,7 +62,7 @@ typedef struct __attribute__((packed)) master_tsch_schedule_universall_config_t
   uint8_t receiver_of_flow[MASTER_NUM_FLOWS]; 
   uint8_t first_tx_slot_in_flow[MASTER_NUM_FLOWS]; 
   uint8_t last_tx_slot_in_flow[MASTER_NUM_FLOWS]; 
-  struct tsch_asn_t start_network_asn;                                //The offset as asn when the switch to the new schedule should take place
+  //struct tsch_asn_t start_network_asn;                                //The offset as asn when the switch to the new schedule should take place
   uint8_t last_received_relayed_packet_of_flow[MASTER_NUM_FLOWS]; 
 } master_tsch_schedule_universall_config_t;
 

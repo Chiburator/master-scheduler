@@ -154,7 +154,7 @@ output(const linkaddr_t *dest)
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &linkaddr_null);
   }
   packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
-
+  printf("Addrs of sender %i\n", linkaddr_node_addr.u8[NODE_ID_INDEX]);
   framer_hdrlen = NETSTACK_FRAMER.length();
   if(framer_hdrlen < 0) {
     /* Framing failed, we assume the maximum header length */

@@ -311,7 +311,7 @@ class Contiki_schedule(object):
 
     output_file_test = open(output_file_path, 'wb')
 
-    slotframe_length = len(self.schedule.schedule[0]) + len(self.node_ids)
+    slotframe_length = len(self.schedule.schedule[0])
 
     if slotframe_length < minimal_schedule_length:
       slotframe_length = minimal_schedule_length
@@ -319,6 +319,7 @@ class Contiki_schedule(object):
       slotframe_length += 1
 
     #schedule length anf slotframes
+    print(slotframe_length)
     output_file_test.write(c_uint8(slotframe_length))
     output_file_test.write(c_uint8(len(self.schedule.flows)))
 
@@ -451,6 +452,6 @@ class Contiki_schedule(object):
     output_file_test.close()
 
     try:
-      upload_schedule.upload_schedule_kiel(output_file_path, "raspi08", 50000)
+      upload_schedule.upload_schedule_kiel(output_file_path, "raspi07", 50000)
     except:
       print("Could not upload schedule")

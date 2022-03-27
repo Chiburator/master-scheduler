@@ -15,7 +15,7 @@
 #define NBR_TABLE_CONF_MAX_NEIGHBORS 16
 
 #undef TSCH_SCHEDULE_CONF_MAX_LINKS //use output of Scheduler
-#define TSCH_SCHEDULE_CONF_MAX_LINKS 20
+#define TSCH_SCHEDULE_CONF_MAX_LINKS 40
 
 //TX-POWER: // probably only one of the two options below needed
 #undef MASTER_CONF_CC2538_TX_POWER

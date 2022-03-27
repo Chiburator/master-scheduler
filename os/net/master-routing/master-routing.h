@@ -47,33 +47,45 @@
 
 enum phase
 {
+  //States for data gathering
   ST_EB,
   ST_BEGIN_GATHER_METRIC,
   ST_POLL_NEIGHBOUR,
   ST_SEND_METRIC,
   ST_POLL_MISSING_METRIC,
+  ST_SEARCH_MISSING_METRIC,
   ST_WAIT_FOR_SCHEDULE,
+  //State for CPAN and distribution node to comit the request to receive a schedule
+  ST_WAIT_FOR_DIST_COMMIT,
+  //States for data dissemination
   ST_SCHEDULE_DIST,
   ST_SCHEDULE_OLD,
   ST_SCHEDULE_RETRANSMITTING,
   ST_SCHEDULE_RECEIVED,
-  ST_SCHEDULE_INSTALLED_RETRANSMITTING,
   ST_SCHEDULE_INSTALLED,
-  ST_END,
+  //During installation, ignore commands with this state
   ST_IGNORE_COMMANDS,
+  //Marking the end of the enum
+  ST_END,
 };
 
 enum commands
 {
+  //Commands for data gathering
   CM_NO_COMMAND,
   CM_ETX_METRIC_GET,
   CM_ETX_METRIC_MISSING,
   CM_ETX_METRIC_SEND,
+  //Command for distribution node start
+  CM_START_DIST_COMMIT,
+  //Commands for data dissemination
   CM_SCHEDULE,
   CM_SCHEDULE_RETRANSMIT,
   CM_SCHEDULE_RETRANSMIT_REQ,
   CM_SCHEDULE_END,
+  //Command signaling that application data is send
   CM_DATA,
+  //Marking the end of the enum
   CM_END,
 };
 

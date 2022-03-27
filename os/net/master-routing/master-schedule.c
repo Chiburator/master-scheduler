@@ -199,8 +199,9 @@ void read_file()
 
 void show_bytes(int id)
 {
+  int size = 1000;
   int i;
-  char string[360] = {0};
+  char string[1000] = {0};
   int string_offset = 0;
 
   // if(idx_test >= 4)
@@ -244,27 +245,27 @@ void show_bytes(int id)
   // }
   // printf("last_tx_slot_in_flow = %s\n", string);
 
-  memset(string, 0, 360);
+  memset(string, 0, size);
   string_offset = 0;
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].own_transmission_flow);
   string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].own_receiver);
   printf("Node %i has own_transmission_flow and own_receiver = %s\n",idx_test + 1, string);
 
-  memset(string, 0, 360);
+  memset(string, 0, size);
   string_offset = 0;
   for(i = 0; i < 8; i++)
   {
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].flow_forwards[i]);
   }
   printf("own flow_forwards = %s\n", string);
-  memset(string, 0, 360);
+  memset(string, 0, size);
   string_offset = 0;
   for(i = 0; i < 8; i++)
   {
     string_offset += sprintf(&string[string_offset], "%i ", (int) schedules[idx_test].max_transmission[i]);
   }
   printf("own max_transmission = %s\n", string);
-  memset(string, 0, 360);
+  memset(string, 0, size);
   string_offset = 0;
   for(i = 0; i < schedules[idx_test].links_len; i++)
   {
@@ -291,7 +292,6 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
     PROCESS_YIELD();
     if(ev == serial_line_event_message) {
       LOG_ERR("Received input %s\n", (uint8_t *)data);
-      int current_bytes = total_bytes_written;
     
       uint8_t message_prefix = asciiHex_to_int(data);
 
@@ -311,16 +311,16 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
         write_to_flash((uint8_t *)(data + 2));
         read_file();
 
-        int i;
-        for(i = 1; i <= 21; i++)
-        {
-          if(i == 11)
-          {
-            continue;
-          }
+        // int i;
+        // for(i = 1; i <= 21; i++)
+        // {
+        //   if(i == 11)
+        //   {
+        //     continue;
+        //   }
           
-          show_bytes(i);
-        }
+        //   show_bytes(i);
+        // }
 
         if(schedule_loaded_callback != NULL)
         {
@@ -338,7 +338,6 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
         LOG_ERR("dont know messagepart %d \n", message_prefix);
         break;
       }
-      LOG_ERR("received data. Read %d, total bytes written now %d\n", total_bytes_written - current_bytes, total_bytes_written);
     }
   }
 

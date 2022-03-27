@@ -203,10 +203,6 @@ PT_THREAD(tsch_scan(struct pt *pt));
 /* Protothread for slot operation, called from rtimer interrupt
  * and scheduled from tsch_schedule_slot_operation */
 static PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr));
-int log_send_packets = 0;
-int log_received_paaaaaackets = 0;
-int use_unicast_ies = 1;
-int log_asn = 1;
 //static PT_THREAD(testhere(struct pt *pt, struct rtimer *t));
 static struct pt slot_operation_pt;
 /* Sub-protothreads of tsch_slot_operation */
@@ -364,7 +360,6 @@ tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_
 static struct tsch_packet *
 get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **target_neighbor)
 {
-  LOG_TRACE("get_packet_and_neighbor_for_link \n");
   struct tsch_packet *p = NULL;
   struct tsch_neighbor *n = NULL;
 # if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
@@ -377,11 +372,8 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
     if(link->link_type == LINK_TYPE_ADVERTISING || link->link_type == LINK_TYPE_ADVERTISING_ONLY) {
       /* fetch EB packets */
       n = n_eb;
-      //printf("n_eb has addr: %u %u\n", n->addr.u8[0], n->addr.u8[1]);
+
       p = tsch_queue_get_packet_for_nbr(n, link);
-      /*if (p != NULL){
-        printf("got a beacon\n");
-      }*/
     }
     if(link->link_type != LINK_TYPE_ADVERTISING_ONLY) {
       /* NORMAL link or no EB to send, pick a data packet */
@@ -943,10 +935,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       //SET_PIN_ADC2;
       /* no packets on air */
       //leds_off(LEDS_GREEN);
-      // if(log_received_paaaaaackets)
-      // {
-      //   printf("Did not see a packet\n");
-      // }
+
 
       tsch_radio_off(TSCH_RADIO_CMD_OFF_FORCE);
     } else {
@@ -1114,11 +1103,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
             /* Add current input to ringbuf */
             ringbufindex_put(&input_ringbuf);
 
-            
-              // if(log_received_paaaaaackets)
-              // {
-              //   printf("got a packet\n");
-              // }
+
             //printf("r,%u\n", (uint16_t)(tsch_current_asn.ls4b));
 
             /* Log every reception */
@@ -1137,7 +1122,7 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
             memset(&ies, 0, sizeof(struct ieee802154_ies));
             int total_len = 0;
-            if (frame.fcf.ie_list_present && use_unicast_ies)
+            if (frame.fcf.ie_list_present)
             {
               /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
               int mic_len = 0;
@@ -1161,17 +1146,10 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
             }
 
             //In case of an important packet add it to input
-            if(!tsch_is_coordinator && use_unicast_ies && total_len && frame.fcf.ie_list_present && ies.ie_packet_important)
+            if(!tsch_is_coordinator && total_len && frame.fcf.ie_list_present && ies.ie_packet_important)
             {
-              //LOG_ERR("add packet? %d %d %d\n", total_len, frame.fcf.ie_list_present, ies.ie_packet_important);
               /* Add current input to ringbuf */
-              //LOG_ERR("Found an important packet\n");
               ringbufindex_put(&input_ringbuf);
-
-              // if(log_received_paaaaaackets)
-              // {
-              //   printf("got a packet\n");
-              // }
             }
 #endif
           }
@@ -1352,6 +1330,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       //                    (unsigned)TSCH_ASN_DIFF(tsch_current_asn, last_sync_asn));
       //);
       last_timesource_neighbor = NULL;
+      printf("Diss associate slot operationA\n");
       tsch_disassociate();
     } else {
       /* backup of drift correction for printing debug messages */

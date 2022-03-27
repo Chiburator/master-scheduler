@@ -130,8 +130,6 @@ struct eb_stat
 NBR_TABLE(struct eb_stat, eb_stats);
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
 
-int print_eb_received = 0;
-int print_eb_sent = 0;
 uint8_t schedule_received[3] = {0};
 
 /* TSCH channel hopping sequence */
@@ -351,6 +349,7 @@ keepalive_packet_sent(void *ptr, int status, int transmissions)
       if (sync_count == 0)
       {
         /* We got no synchronization at all in this session, leave the network */
+        printf("Diss associate A\n");
         tsch_disassociate();
       }
     }
@@ -519,6 +518,7 @@ eb_input(struct input_packet *current_input)
       {
         /* We disagree with our time source's ASN -- leave the network */
         LOG_WARN("! ASN drifted by %ld, leaving the network\n", asn_diff);
+        printf("Diss associate B\n");
         tsch_disassociate();
       }
 
@@ -527,6 +527,7 @@ eb_input(struct input_packet *current_input)
         /* Join priority unacceptable. Leave network. */
         LOG_WARN("! EB JP too high %u, leaving the network\n",
                  eb_ies.ie_join_priority);
+        printf("Diss associate C\n");
         tsch_disassociate();
       }
       else
@@ -598,6 +599,7 @@ eb_input(struct input_packet *current_input)
 
     if(eb_ies.ie_schedule_version != schedule_version)
     {
+      printf("nbr %i\n", frame.src_addr[NODE_ID_INDEX]);
       schedule_difference_callback((linkaddr_t *)&frame.src_addr, eb_ies.ie_schedule_version, eb_ies.ie_schedule_packets);
     }
     #endif
@@ -669,7 +671,7 @@ tsch_rx_process_pending()
 
       // If IE's are present, overwritte them before copying the payload into the packetbuffer
       //LOG_ERR("Is ie list present? %d\n", frame.fcf.ie_list_present);
-      if(frame.fcf.ie_list_present && use_unicast_ies)
+      if(frame.fcf.ie_list_present)
       {
       /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
           int mic_len = 0;
@@ -1203,10 +1205,6 @@ PROCESS_THREAD(tsch_send_eb_process, ev, data)
 #endif /* TSCH_DEBUG_PRINT */
             p->tsch_sync_ie_offset = tsch_sync_ie_offset;
             p->header_len = hdr_len;
-            // if(print_eb_sent)
-            // {
-            //   printf("send eb!\n");
-            // }
           }
         }
         leds_toggle(LEDS_RED);

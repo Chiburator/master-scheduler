@@ -53,6 +53,7 @@ def main():
 
   if args.file:
     filename = args.file
+    print(filename)
 
   if args.testbed:
     if args.testbed == 'cooja':
@@ -143,7 +144,7 @@ def main():
     generate_contiki_schedule = True
     if args.output_file:
       contiki_output_file = os.path.normpath(args.output_file)
-      print(contiki_output_file)
+
     else:
       raise ValueError("Please specify the Contiki output file!")
 
@@ -188,6 +189,7 @@ def main():
   if(folder):
     # print(neighbor_parser.graph_etx)
     # Call new class using new form of regex
+
     parser = Parser_EB(node_ids, folder, filename, max_etx)
     if (not parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)):
       print("Metric not finished!")

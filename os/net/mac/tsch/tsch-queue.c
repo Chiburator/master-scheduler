@@ -142,6 +142,24 @@ tsch_queue_get_nbr(const linkaddr_t *addr)
   }
   return NULL;
 }
+
+struct tsch_neighbor *
+tsch_queue_get_nbr_by_node_id(const uint8_t node_id)
+{
+  if (!tsch_is_locked())
+  {
+    struct tsch_neighbor *n = list_head(neighbor_list);
+    while (n != NULL)
+    {
+      if (n->addr.u8[NODE_ID_INDEX] == node_id)
+      {
+        return n;
+      }
+      n = list_item_next(n);
+    }
+  }
+  return NULL;
+}
 /*---------------------------------------------------------------------------*/
 /* Get the first TSCH neighbor */
 struct tsch_neighbor *tsch_queue_first_nbr()
