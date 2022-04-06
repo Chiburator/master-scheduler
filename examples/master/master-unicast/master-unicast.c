@@ -86,10 +86,11 @@ PROCESS_THREAD(master_unicast_process, ev, data)
     }
   } else {
     while (1){
+      printf("Not a sender\n");
       PROCESS_YIELD();
     }
   }
-
+  printf("Process end for master-unicast\n");
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/

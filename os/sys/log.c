@@ -73,7 +73,7 @@ struct log_module all_modules[] = {
   {"main", &curr_log_level_main, LOG_CONF_LEVEL_MAIN},
   {NULL, NULL, 0},
 };
-
+int count = 0;
 #if NETSTACK_CONF_WITH_IPV6
 
 /*---------------------------------------------------------------------------*/

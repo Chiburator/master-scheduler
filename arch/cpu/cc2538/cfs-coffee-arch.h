@@ -127,7 +127,7 @@
 #ifdef COFFEE_CONF_APPEND_ONLY
 #define COFFEE_APPEND_ONLY     COFFEE_CONF_APPEND_ONLY
 #else
-#define COFFEE_APPEND_ONLY     1
+#define COFFEE_APPEND_ONLY     0
 #endif
 /** @} */
 /*---------------------------------------------------------------------------*/

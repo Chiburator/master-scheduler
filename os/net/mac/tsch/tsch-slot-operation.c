@@ -328,9 +328,6 @@ tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_
 
     return 0;
   }
-  //TODO:: use TSCH_LOG_ADD to make a trace without reducing performance?
-  //TSCH_LOG_ADD("slot start = %i and offset = %i \n", ref_time, offset);
-  test = 0;
   ref_time += offset;
 
   r = rtimer_set(tm, ref_time, 1, (void (*)(struct rtimer *, void *))tsch_slot_operation, NULL);
@@ -482,7 +479,6 @@ get_packet_and_neighbor_for_link(struct tsch_link *link, struct tsch_neighbor **
 static void
 tsch_radio_on(enum tsch_radio_state_on_cmd command)
 {
-  LOG_TRACE("tsch_radio_on \n");
   int do_it = 0;
   switch(command) {
   case TSCH_RADIO_CMD_ON_START_OF_TIMESLOT:
@@ -501,10 +497,8 @@ tsch_radio_on(enum tsch_radio_state_on_cmd command)
   }
   if(do_it) {
     //SET_PIN_ADC2;
-    LOG_TRACE("activate radio \n");
     NETSTACK_RADIO.on();
   }
-  LOG_TRACE_RETURN("tsch_radio_on \n");
 }
 /*---------------------------------------------------------------------------*/
 /**
@@ -517,7 +511,6 @@ tsch_radio_on(enum tsch_radio_state_on_cmd command)
 static void
 tsch_radio_off(enum tsch_radio_state_off_cmd command)
 {
-  LOG_TRACE("tsch_radio_off \n");
   int do_it = 0;
   switch(command) {
   case TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT:
@@ -538,14 +531,12 @@ tsch_radio_off(enum tsch_radio_state_off_cmd command)
     //UNSET_PIN_ADC2;
     NETSTACK_RADIO.off();
   }
-  LOG_TRACE_RETURN("tsch_radio_off \n");  
 }
 /*---------------------------------------------------------------------------*/
 
 static
 PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
 {
-  LOG_TRACE("PT: tsch_tx_slot \n");
   /**
    * TX slot:
    * 1. Copy packet to radio buffer
@@ -819,6 +810,11 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
             //LOG_ERR("[    TX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}\n",
             //      tsch_current_asn.ms1b, tsch_current_asn.ls4b,
             //      current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset);
+          }else{
+            if(debugOn)
+            {
+              printf("eb sent\n");
+            }
           }
         }
       }
@@ -867,7 +863,6 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
   //leds_off(LEDS_GREEN);
   //GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   TSCH_DEBUG_TX_EVENT();
-  LOG_TRACE_RETURN("PT: tsch_tx_slot \n");
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
@@ -882,7 +877,6 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
    * 4. Prepare and send ACK if needed
    * 5. Drift calculated in the ACK callback registered with the radio driver. Use it if receiving from a time source neighbor.
    **/
-  LOG_TRACE("PT: tsch_rx_slot \n");
   struct tsch_neighbor *n;
   static linkaddr_t source_address;
   static linkaddr_t destination_address;
@@ -1173,7 +1167,6 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
   }
   //GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
   TSCH_DEBUG_RX_EVENT();
-  LOG_TRACE_RETURN("PT: tsch_rx_slot \n");
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
@@ -1371,10 +1364,8 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
 
     something:
     tsch_in_slot_operation = 0;
-    //LOG_TRACE("PT: tsch_slot_operation - next slot \n");
     PT_YIELD(&slot_operation_pt);
   }
-  //LOG_TRACE_RETURN("PT: tsch_slot_operation \n");
   PT_END(&slot_operation_pt);
 }
 /*---------------------------------------------------------------------------*/
@@ -1413,13 +1404,11 @@ void
 tsch_slot_operation_sync(rtimer_clock_t next_slot_start,
     struct tsch_asn_t *next_slot_asn)
 {
-  LOG_TRACE("tsch_slot_operation_sync \n");
   current_slot_start = next_slot_start;
   tsch_current_asn = *next_slot_asn;
   last_sync_asn = tsch_current_asn;
   last_sync_time = clock_time();
   current_link = NULL;
-  LOG_TRACE_RETURN("tsch_slot_operation_sync \n");
 }
 /*---------------------------------------------------------------------------*/
 /** @} */

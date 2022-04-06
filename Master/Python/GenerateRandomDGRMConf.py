@@ -125,4 +125,4 @@ def create_dgrm_graph(beacons, version):
 count = 1
 
 while(count < 11):
-  count += create_dgrm_graph(50, count)
+  count += create_dgrm_graph(400, count)

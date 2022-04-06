@@ -63,7 +63,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH Sched"
-#define LOG_LEVEL LOG_LEVEL_NONE
+#define LOG_LEVEL LOG_LEVEL_INFO
 
 /* Pre-allocated space for links */
 MEMB(link_memb, struct tsch_link, TSCH_SCHEDULE_MAX_LINKS);
@@ -472,7 +472,7 @@ tsch_schedule_print(void)
 
       while(l != NULL) {
         printf("[Link] Options %02x, type %u, timeslot %u, channel offset %u, address %u\n",
-               l->link_options, l->link_type, l->timeslot, l->channel_offset, l->addr.u8[0]); //l->addr.u8[7]
+               l->link_options, l->link_type, l->timeslot, l->channel_offset, l->addr.u8[NODE_ID_INDEX]);
         l = list_item_next(l);
       }
 

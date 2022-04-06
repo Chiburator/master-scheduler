@@ -212,6 +212,8 @@ extern const struct mac_driver tschmac_driver;
 typedef void (* master_routing_schedule_difference_callback)(linkaddr_t * nbr, uint8_t schedule_version, uint16_t schedule_packets);
 typedef void (* master_callback_check_received_schedules)(uint8_t *schedule_received, uint8_t len);
 
+extern process_event_t tsch_associated_to_network;
+
 /**
  * Set input callback for MasterRouting
  *
@@ -238,6 +240,9 @@ extern uint8_t tsch_eb_active;
 extern uint8_t tsch_change_time_source_active;
 extern uint8_t cycles_since_last_timesource_eb; //This variable is incremented each cycle (when a node sends an eb) and reset once we receive an eb from the time source
 extern uint8_t schedule_received[3];
+
+//TODO:: remove debugging help
+uint8_t debugOn;
 
 #endif /* __TSCH_H__ */
 /** @} */

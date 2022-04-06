@@ -64,7 +64,6 @@
 #define LOG_LEVEL_WARN         2 /* Warnings */
 #define LOG_LEVEL_INFO         3 /* Basic info */
 #define LOG_LEVEL_DBG          4 /* Detailled debug */
-#define LOG_LEVEL_TRACE        5 /* Detailled debug */
 
 /* Per-module log level */
 
@@ -83,7 +82,8 @@ extern int curr_log_level_mac;
 extern int curr_log_level_framer;
 //extern int curr_log_level_6top;
 extern int curr_log_level_main;
-
+/* Main log function */
+extern int count;
 extern struct log_module all_modules[];
 
 //#define LOG_LEVEL_RPL                         MIN((LOG_CONF_LEVEL_RPL), curr_log_level_rpl)
@@ -96,7 +96,6 @@ extern struct log_module all_modules[];
 //#define LOG_LEVEL_6TOP                        MIN((LOG_CONF_LEVEL_6TOP), curr_log_level_6top)
 #define LOG_LEVEL_MAIN                        MIN((LOG_CONF_LEVEL_MAIN), curr_log_level_main)
 
-/* Main log function */
 
 #define LOG(newline, level, levelstr, ...) do {  \
                             if(level <= (LOG_LEVEL)) { \
@@ -146,8 +145,6 @@ extern struct log_module all_modules[];
 #define LOG_WARN(...)          LOG(1, LOG_LEVEL_WARN, "WARN", __VA_ARGS__)
 #define LOG_INFO(...)          LOG(1, LOG_LEVEL_INFO, "INFO", __VA_ARGS__)
 #define LOG_DBG(...)           LOG(1, LOG_LEVEL_DBG, "DBG", __VA_ARGS__)
-#define LOG_TRACE(...)         LOG(1, LOG_LEVEL_TRACE, "TRACE", __VA_ARGS__)
-#define LOG_TRACE_RETURN(...)  LOG(1, LOG_LEVEL_TRACE, "TRACE: RETURN", __VA_ARGS__)
 
 #define LOG_ERR_(...)           LOG(0, LOG_LEVEL_ERR, "ERR", __VA_ARGS__)
 #define LOG_WARN_(...)          LOG(0, LOG_LEVEL_WARN, "WARN", __VA_ARGS__)

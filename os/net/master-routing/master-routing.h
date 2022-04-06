@@ -89,6 +89,8 @@ enum commands
   CM_END,
 };
 
+PROCESS_NAME(distributor_callback);
+
 /** Master's routing packet with "header" */
 typedef struct __attribute__((packed)) master_routing_packet_t
 {
@@ -135,6 +137,8 @@ int master_routing_send(const void *data, uint16_t datalen);
 int master_routing_sendto(const void *data, uint16_t datalen, uint8_t flow);
 
 void init_master_routing(void);
+
+void master_schedule_loaded_callback();
 
 void install_schedule();
 

@@ -12,8 +12,39 @@ from scheduling_contiki import Contiki_schedule
 import os
 import socket
 import time
+import threading
+import shutil
+
+from multiprocessing import Lock
+
+def print_line(message, lock):
+  lock.acquire()
+  try:
+    print(message)
+  finally:
+    lock.release()
+
+def thread_clear_raspi_pipe(raspi, port, lock):
+  connected = False
+  print_line("Lets go", lock)
+  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    while not connected:
+      try:
+        s.connect((raspi, port))
+        connected = True
+      except:
+        time.sleep(1)
+        print_line(".", lock)
+
+    message = s.recv(1024)
+    while message != b'':
+
+      #print_line(message, lock)
+      message = s.recv(1024)
+  print_line("done", lock)
 
 def main():
+
   parser = argparse.ArgumentParser(description='Scheduler')
   parser.add_argument('-dir', '--folder', help='Folder containing neighbor discovery statistics', default='')
   parser.add_argument('-f', '--file', help='File in specified folder, include iff 1 file')
@@ -42,6 +73,7 @@ def main():
   parser.add_argument('-p_prr', '--print_prr', help='Print PRR table', action='store_true')
   parser.add_argument('-p_rssi', '--print_rssi', help='Print RSSI table', action='store_true')
   parser.add_argument('-p_sched', '--print_schedule', help='Print Schedule', action='store_true')
+  parser.add_argument('-round', '--round', help='Log information for this run in a file: ''', type=int)
   args = parser.parse_args()
 
   if(args.folder != ''):
@@ -140,6 +172,11 @@ def main():
   else:
     max_etx = 10
 
+  if args.round:
+    round = args.round
+  else:
+    round = ''
+
   if args.with_contiki_schedule:
     generate_contiki_schedule = True
     if args.output_file:
@@ -184,7 +221,6 @@ def main():
   else:
     communications.append( (1, 2) )
 
-
   # Parse ETX-Metric received either from a log in a folder or via tcp
   if(folder):
     # print(neighbor_parser.graph_etx)
@@ -195,7 +231,6 @@ def main():
       print("Metric not finished!")
       return
   else:
-    timeout = time.time() + 60*5
     log = ""
     parser = Parser_EB(node_ids, '', '', max_etx)
     connected = False
@@ -210,8 +245,10 @@ def main():
 
       message = b''
       terminating_string = 'ETX-Links finished!'
-      while terminating_string not in log and time.time() < timeout:
+      while terminating_string not in log:
         message = s.recv(1024)
+        if(message == b''):
+          break;
         print(message)
         log += message.decode(encoding='utf-8')
 
@@ -237,14 +274,33 @@ def main():
   schedule = Schedule(flows) # parser.graph_etx,
   schedule.create(etx_power, num_channels, scheduling_algorithm, scheduling_strategy, scheduling_window_size_alg, fixed_window_size)
 
+  schedule_information = "reports/schedule_information{}.txt".format(round)
+  schedule_information = os.path.normpath(os.path.join(os.getcwd(), schedule_information))
+  #open(schedule_information, 'w+').close()
+
   if args.print_schedule:
     print(schedule)
+    #schedule_information = os.path.normpath(os.path.join(os.getcwd(), schedule_information))
+
+    #with open(schedule_information, 'a') as file:
+      #file.write(str(schedule))
 
   if generate_contiki_schedule:
     contiki_schedule = Contiki_schedule(parser.graph_etx, schedule, node_ids, network_time_source)
     contiki_schedule.generate("test.c", contiki_minimal_schedule_length, contiki_schedule_timesource)
+    #shutil.copy("test.c", "reports/c_file{}.c".format(round))
     contiki_schedule.generate_for_enhanced_beacon(contiki_output_file, contiki_minimal_schedule_length, contiki_schedule_timesource, with_ttl_retransmissions)
 
+  lock = Lock()
+  #clear raspi pipe or else the pipe will be blocket at 64 KB
+  cpan = threading.Thread(target=thread_clear_raspi_pipe, args=("raspi08", 50000,lock,))
+  distributor = threading.Thread(target=thread_clear_raspi_pipe, args=("raspi07", 50000,lock,))
+
+  cpan.start()
+  distributor.start()
+
+  cpan.join()
+  distributor.join()
 
 if __name__ == "__main__":
   main()

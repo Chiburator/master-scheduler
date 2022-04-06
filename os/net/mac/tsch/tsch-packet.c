@@ -59,7 +59,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TSCH Pkt"
-#define LOG_LEVEL LOG_LEVEL_TRACE
+#define LOG_LEVEL LOG_LEVEL_INFO
 
 /* The sequence number of the latest sent EB */
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
