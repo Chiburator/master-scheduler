@@ -67,7 +67,7 @@
 #endif
 
 #ifndef TSCH_BEACON_AMOUNT
-#define TSCH_BEACON_AMOUNT 300
+#define TSCH_BEACON_AMOUNT 340
 #endif
 
 #define MASTER_BEACONS_AFTER_SCHEDULE_DIST 5
@@ -79,6 +79,11 @@
 #ifndef MASTER_NUM_FLOWS
 #define MASTER_NUM_FLOWS 8
 #endif
+
+#define FILENAME "TSCH-Schedule"
+
+//Define the size of the bit-vector in the EB to indicate when the network is ready to change to the new schedule
+#define FRAME802154E_IE_SCHEDULE_BIT_VECTOR 3
 
 #ifndef HASH_MAP_CONF_SIZE
 #define HASH_MAP_CONF_SIZE 25

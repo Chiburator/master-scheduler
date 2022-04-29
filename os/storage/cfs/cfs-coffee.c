@@ -468,7 +468,6 @@ find_file(const char *name)
 
     read_header(&hdr, coffee_files[i].page);
     if(HDR_ACTIVE(hdr) && !HDR_LOG(hdr) && strcmp(name, hdr.name) == 0) {
-      printf("cfs_find found file!!!!!\n");
       return &coffee_files[i];
     }
   }
@@ -477,11 +476,10 @@ find_file(const char *name)
   for(page = 0; page < COFFEE_PAGE_COUNT; page = next_file(page, &hdr)) {
     read_header(&hdr, page);
     if(HDR_ACTIVE(hdr) && !HDR_LOG(hdr) && strcmp(name, hdr.name) == 0) {
-      printf("cfs_find found file!!!!!     \n");
       return load_file(page, &hdr);
     }
   }
-  printf("cfs_find NULL     \n");
+
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
@@ -1002,16 +1000,14 @@ cfs_open(const char *name, int flags)
       return -1;
     }
     fdp->file->end = 0;
-    printf("cfs_open setting file->end to 0 zero\n");
+
   } else if(fdp->file->end == UNKNOWN_OFFSET) {
     fdp->file->end = file_end(fdp->file->page);
-    printf("cfs_open setting file->end to %i\n", (int)fdp->file->end);
   }
 
   fdp->flags |= flags;
   fdp->offset = flags & CFS_APPEND ? fdp->file->end : 0;
   fdp->file->references++;
-  printf("cfs_open setting fdp->offset to %i\n", (int)fdp->offset);
 
   return fd;
 }
@@ -1039,7 +1035,6 @@ cfs_seek(int fd, cfs_offset_t offset, int whence)
 
   if(whence == CFS_SEEK_SET) {
     new_offset = offset;
-    printf("cfs_seek setting offset to %i \n", (int) offset);
   } else if(whence == CFS_SEEK_END) {
     new_offset = fdp->file->end + offset;
   } else if(whence == CFS_SEEK_CUR) {
@@ -1053,9 +1048,7 @@ cfs_seek(int fd, cfs_offset_t offset, int whence)
   }
 
   if(fdp->file->end < new_offset) {
-    printf("cfs_seek file->end %i < new offset %i\n", (int)fdp->file->end, (int) offset);
-    if(FD_WRITABLE(fd)) {
-      printf("cfs_seek setting file end = offset \n");
+    if(FD_WRITABLE(fd)) {;
       fdp->file->end = new_offset;
     } else {
       /* Disallow seeking past the end of the file for read only FDs */
@@ -1103,14 +1096,12 @@ cfs_read(int fd, void *buf, unsigned size)
 
   fdp = &coffee_fd_set[fd];
   file = fdp->file;
- // printf("cfs_read CFS_COFFEE_IO_ENSURE_READ_LENGTH = %i\n", CFS_COFFEE_IO_ENSURE_READ_LENGTH);
+
   if(fdp->io_flags & CFS_COFFEE_IO_ENSURE_READ_LENGTH) {
     while(fdp->offset + size > file->end) {
-     // printf("cfs_read inside CFS_COFFE and setting unused byte = %i to 0\n", size);
       ((char *)buf)[--size] = '\0';
     }
   } else if(fdp->offset + size > file->end) {
-   // printf("cfs_read size(%i) + offset (%i) too big. calc size again for end = %i \n", size, (int) fdp->offset, (int) file->end);
     size = file->end - fdp->offset;
   }
 
@@ -1118,7 +1109,6 @@ cfs_read(int fd, void *buf, unsigned size)
   if(!FILE_MODIFIED(file)) {
     COFFEE_READ(buf, size, absolute_offset(file->page, fdp->offset));
     fdp->offset += size;
-  //  printf("cfs_read read directly from file with size = %i\n", size);
     return size;
   }
 
@@ -1174,7 +1164,7 @@ cfs_write(int fd, const void *buf, unsigned size)
     while(size + fdp->offset + sizeof(struct file_header) >
 	  (file->max_pages * COFFEE_PAGE_SIZE)) {
       if(merge_log(file->page, 1) < 0) {
-	return -1;
+	      return -1;
       }
       file = fdp->file;
       PRINTF("Extended the file at page %u\n", (unsigned)file->page);

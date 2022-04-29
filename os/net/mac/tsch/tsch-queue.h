@@ -160,7 +160,7 @@ struct tsch_neighbor {
   uint16_t last_eb;
   uint16_t count;
   uint16_t missed_ebs;
-  uint8_t etx_link;
+  uint16_t etx_link;
   uint8_t etx_metric_received;
 #endif
   uint8_t backoff_exponent; /* CSMA backoff exponent */

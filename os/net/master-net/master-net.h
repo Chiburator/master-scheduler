@@ -65,7 +65,7 @@ typedef struct master_packetbuf_config_t {
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
   uint8_t command;
   uint8_t packet_nbr;
-  uint8_t important_packet;
+  uint8_t overhearing_active;
 #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
   uint8_t send_to_nbr;
 #endif
@@ -80,12 +80,6 @@ typedef struct master_packetbuf_config_t {
 #endif /* MASTER_CONF_MAC_MAX_PAYLOAD */
 
 #define FIXED_HDRLEN 21 //might be too much
-
-typedef struct {
-  uint8_t command;
-  uint8_t packet_nbr;
-  uint8_t hdr_len;
-} packet_data_t;
 
 /**
  * Buffer used by the output function

@@ -24,20 +24,29 @@ class Parser_EB(object):
     self.etx_metric = {} #{1 : {node-id : etx_value , ...}, 2 : {...}, ...}#
     self.parse_graphs = []
     self.graph_etx = defaultdict(dict)
+    self.graph_prr = defaultdict(dict)
     self.schedule_finished = False
 
   def match_neighbor_data(self, line):
-    match = re_search(r'ETX-Links - FROM (\d+); ((\d+:\d{1,3}.\d,? ?)+)', line)  # ETX-Links - FROM 1; 4:1.2, 3:1.2, 2:2.0, 4:2.2
+    match = re_search(r'ETX-Links - FROM (\d+); ((\d+:\d{1,3}.\d+,? ?)+)', line)  # ETX-Links - FROM 1; 4:1.2, 3:1.2, 2:2.0, 4:2.2
     if match:
       receiver = int(match.group(1))  # == node_id
-
       sender_and_etx_values = match.group(2).strip().split(', ') # get the list os "sender:etx_value"
       print('----------------------------------------------------------')
-      print("found: {}".format(match.group(2)))
+      print("found {}: {}".format(receiver, match.group(2)))
       print('----------------------------------------------------------')
       for sender_and_etx_value in sender_and_etx_values:
         sender, etx_value = sender_and_etx_value.split(':')
-        self.graph_etx[int(sender)][int(receiver)] = float(etx_value)
+
+        if(float(etx_value) < float(self.max_etx_bound)):
+          if(float(etx_value) == 1.000):
+            etx_value = float(etx_value) + 0.087  #small correction since we can not have a perfect 100% PRR
+          self.graph_etx[int(sender)][int(receiver)] = float(etx_value)
+          self.graph_prr[int(sender)][int(receiver)] = (1.0 / float(etx_value)) * 100.0
+
+  def print_graph(self):
+    for send, receiv_etx in self.graph_etx.items():
+      print(send, receiv_etx)
 
   def parse_file(self, filepath):
     with open(filepath, encoding="utf8", errors='ignore') as f:
@@ -58,10 +67,10 @@ class Parser_EB(object):
       graph = self.graph_prr
       entry_format_string = '{:8.3f}'
     elif table_type == Data_table.rssi: #Received Signal Strength Indicator
+      return; #Rssi not suported
       output = 'RSSI'
       graph = self.graph_rssi
       entry_format_string = '{:8.1f}'
-
     output += ' table:\n^^^^^^^^^^\nr\\f'
     for sender in self.valid_node_ids:
       output += '{:8d}'.format(sender)
@@ -84,11 +93,11 @@ class Parser_EB(object):
     else:
       for filename in os.listdir(self.folder):
         self.parse_file(self.folder + filename)
-    #self.combine_parse_graphs()
-    #if print_prr:
-    #  self.print_parsed_data_table(Data_table.prr)
+
+    if print_prr:
+      self.print_parsed_data_table(Data_table.prr)
     if print_etx:
       self.print_parsed_data_table(Data_table.etx)
-    #if print_rssi:
-    #  self.print_parsed_data_table(Data_table.rssi)
+    if print_rssi:
+      self.print_parsed_data_table(Data_table.rssi)
     return self.schedule_finished

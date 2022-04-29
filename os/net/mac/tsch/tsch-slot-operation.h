@@ -86,8 +86,10 @@
 #ifdef TSCH_CALLBACK_DO_NACK
 int TSCH_CALLBACK_DO_NACK(struct tsch_link *link, linkaddr_t *src, linkaddr_t *dst);
 #endif
-int test_stop();
+/* Sto the rtimer to wake up at the timeslots */
+int stop_tsch_timer();
 int stop;
+/* Start the timeslot timer again */
 PT_THREAD(setUploadDone(struct pt *pt));
 /************ Types ***********/
 

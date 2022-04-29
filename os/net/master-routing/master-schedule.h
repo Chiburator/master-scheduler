@@ -12,6 +12,7 @@
 #include "contiki.h"
 #include "tsch/tsch-schedule.h"
 
+/* The process to receive a schedule over serial line input */
 PROCESS_NAME(serial_line_schedule_input);
 
 enum MessagePart{
@@ -21,7 +22,6 @@ enum MessagePart{
 };
 
 /* structure used by Master (Python) */
-//typedef struct __attribute__((packed))
 typedef struct
 {
   uint8_t slotframe_handle;
@@ -31,7 +31,6 @@ typedef struct
 } scheduled_link_t;
 
 /** Master's schedule that will be distributed and applied at all nodes*/
-//typedef struct __attribute__((packed)) master_tsch_schedule_t
 typedef struct master_tsch_schedule_t
 {
   uint8_t own_transmission_flow;
@@ -42,15 +41,10 @@ typedef struct master_tsch_schedule_t
   scheduled_link_t links[TSCH_SCHEDULE_MAX_LINKS];
 } master_tsch_schedule_t;
 
-//extern master_tsch_schedule_t schedules[];
-extern master_tsch_schedule_t schedule;
-extern int bytes_in_flash;
-
-//typedef struct __attribute__((packed)) master_tsch_schedule_universall_config_t
 typedef struct master_tsch_schedule_universall_config_t
 {
   uint8_t schedule_length;
-  uint8_t slot_frames; //TODO:: this will be used to init the slotframes starting at 1 
+  uint8_t slot_frames;
   uint8_t sender_of_flow[MASTER_NUM_FLOWS]; 
   uint8_t receiver_of_flow[MASTER_NUM_FLOWS]; 
   uint8_t first_tx_slot_in_flow[MASTER_NUM_FLOWS]; 
@@ -58,9 +52,13 @@ typedef struct master_tsch_schedule_universall_config_t
   uint8_t last_received_relayed_packet_of_flow[MASTER_NUM_FLOWS]; 
 } master_tsch_schedule_universall_config_t;
 
-extern master_tsch_schedule_universall_config_t schedule_config;
+/* Variable to know how many bytes we wrote to flash */
+extern int bytes_in_flash;
 
-void load_schedule();
+/* The schedule structure to be used */
+extern master_tsch_schedule_t schedule;
+/* The schedule configuration applied at every node to be used */
+extern master_tsch_schedule_universall_config_t schedule_config;
 
 struct master_tsch_schedule_t* get_own_schedule();
 
@@ -76,11 +74,9 @@ uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow);
 
 uint8_t read_flash(uint8_t * buf, int offset, uint8_t len);
 
-void tsch_disasssociate_synch(void);
-
 uint8_t read_from_flash_by_id(master_tsch_schedule_universall_config_t * config, master_tsch_schedule_t * schedule, int id);
 
-void write_to_flash_offset(uint8_t * data, int offset, uint8_t len);
+uint8_t write_to_flash_offset(uint8_t * data, int offset, uint8_t len);
 
 void setBit(uint32_t *bit_vector, int k);
 void setBit1Byte(uint8_t *bit_vector, int k);
@@ -100,9 +96,4 @@ void resetBitVector(uint32_t *bit_vector, uint8_t n);
 */
 int getMissingPacket(uint32_t *bit_vector, int last_packet);
 
-
-//TODO maybe remove later
-uint8_t find_schedule(master_tsch_schedule_universall_config_t * config, int id);
-void get_test(uint8_t *own_receiver, uint8_t *own_transmission_flow, uint8_t *links_len);
-void get_next_link(scheduled_link_t *link);
 #endif /* MASTER_SCHEDULE_H */

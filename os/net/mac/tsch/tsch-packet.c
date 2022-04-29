@@ -313,7 +313,7 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 
   ies.ie_schedule_version = schedule_version;
   ies.ie_schedule_packets = schedule_packets;
-  memcpy(ies.ie_schedule_received, schedule_received, 3);
+  memcpy(ies.ie_schedule_received, schedule_received, FRAME802154E_IE_SCHEDULE_BIT_VECTOR);
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
 
   p = packetbuf_dataptr();
@@ -412,7 +412,7 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   ie_len = frame80215e_create_ie_schedule_received(p,
                                                   packetbuf_remaininglen(),
                                                   &ies,
-                                                  3);
+                                                  FRAME802154E_IE_SCHEDULE_BIT_VECTOR);
   if (ie_len < 0)
   {
     return -1;
@@ -502,7 +502,7 @@ int tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 int tsch_packet_create_unicast()
 {
-  //The payload ie_hdr_len is 2 bytes and the ie for ie_packet_important is 3 bytes
+  //The payload ie_hdr_len is 2 bytes and the ie for ie_overhearing is 3 bytes
   uint8_t payload_ie_hdr_len = 2;
   uint8_t payload_ie_len = 3;
   uint8_t payload_ie_termination2 = 2;
@@ -510,7 +510,7 @@ int tsch_packet_create_unicast()
   //Prepare the only ies we need for a unicast
   struct ieee802154_ies ies;
   memset(&ies, 0, sizeof(ies));
-  ies.ie_packet_important = 1;
+  ies.ie_overhearing = 1;
   ies.ie_mlme_len = payload_ie_len; //Set the length for the payload ies
 
   int ie_len = 0;
@@ -532,9 +532,9 @@ int tsch_packet_create_unicast()
   }
 
   //Set the IE for important packets (3 bytes)
-  ie_len = frame80215e_create_ie_packet_important(packetbuf_dataptr() + payload_ie_hdr_len,
-                                                  packetbuf_remaininglen(),
-                                                  &ies);
+  ie_len = frame80215e_create_ie_overhearing(packetbuf_dataptr() + payload_ie_hdr_len,
+                                             packetbuf_remaininglen(),
+                                             &ies);
   if (ie_len < 0)
   {
     return -1;

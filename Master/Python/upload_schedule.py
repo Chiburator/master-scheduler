@@ -70,11 +70,11 @@ def upload_schedule_kiel(filepath, host, port):
     #  print(message)
     #s.close()
 
-def upload_schedule_cooja(filepath, host, port):
-  time.sleep(2)
+def upload_schedule_cooja(filepath):
+
   print("Lets go")
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.connect((host, port))
+    s.connect(('127.0.0.1', 60007))
     with open(filepath, "rb") as file:
       file.seek(0, 2)
       total_bytes = file.tell()
@@ -113,4 +113,4 @@ def upload_schedule_cooja(filepath, host, port):
     #s.close()
 
 if __name__ == '__main__':
-  upload_schedule_cooja("meinTest.bin", '127.0.0.1', 60007)
+  upload_schedule_cooja("meinTest.bin")

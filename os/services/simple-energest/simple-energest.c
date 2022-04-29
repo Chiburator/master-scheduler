@@ -107,7 +107,7 @@ PROCESS_THREAD(simple_energest_process, ev, data)
   static struct etimer p_timer;
   PROCESS_BEGIN();
 
-  etimer_set(&p_timer, CLOCK_SECOND * 120);
+  etimer_set(&p_timer, CLOCK_SECOND * 60);
   PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&p_timer));
   simple_energest_step();
 

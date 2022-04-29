@@ -634,18 +634,6 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
         } else
 #endif /* CCA_ENABLED */
         {
-          // if(queuebuf_addr(current_packet->qb, PACKETBUF_ADDR_ERECEIVER)->u8[0] == 1)
-          // {
-          //   char str[256];
-          //   int i;
-          //   for (i = 0; i < packet_len; i++) {
-          //     sprintf(&str[i*2], "%02X", ((uint8_t*)packet)[i]);
-          //   }
-          //   LOG_INFO("Packet LEN =%u\n", packet_len);
-
-          //   LOG_INFO("Packet %s\n", str);
-          // }
-
           /* delay before TX */
           TSCH_SCHEDULE_AND_YIELD(pt, t, current_slot_start, tsch_timing[tsch_ts_tx_offset] - RADIO_DELAY_BEFORE_TX, "TxBeforeTx");
           TSCH_DEBUG_TX_EVENT();
@@ -810,21 +798,12 @@ PT_THREAD(tsch_tx_slot(struct pt *pt, struct rtimer *t))
             //LOG_ERR("[    TX SLOT:    ] {asn-%x.%lx link-%u-%u-%u}\n",
             //      tsch_current_asn.ms1b, tsch_current_asn.ls4b,
             //      current_link->slotframe_handle, current_link->timeslot, current_link->channel_offset);
-          }else{
-            if(debugOn)
-            {
-              printf("eb sent\n");
-            }
           }
         }
       }
     }
 
     tsch_radio_off(TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT);
-    if(!current_neighbor->is_broadcast)
-    {
-      //LOG_ERR("Transmitt try %i to dest %d done with status %d\n", current_packet->transmissions, current_link->addr.u8[NODE_ID_INDEX], mac_tx_status);
-    }
 
     current_packet->transmissions++;
     current_packet->ret = mac_tx_status;
@@ -957,17 +936,6 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
         /* Read packet */
         current_input->len = NETSTACK_RADIO.read((void *)current_input->payload, TSCH_PACKET_MAX_LEN);
         NETSTACK_RADIO.get_value(RADIO_PARAM_LAST_RSSI, &radio_last_rssi);
-        // if(linkaddr_node_addr.u8[0] == 1 && source_address.u8[0] == 5)
-        // {
-        //   char str[256];
-        //   int i;
-        //   for (i = 0; i < current_input->len; i++) {
-        //     sprintf(&str[i*2], "%02X", current_input->payload[i]);
-        //   }
-        //   LOG_INFO("ETX-Links Packet LEN =%u\n", current_input->len);
-
-        //   LOG_INFO("Packet %s\n", str);
-        // }
         current_input->rx_asn = tsch_current_asn;
         current_input->rssi = (signed)radio_last_rssi;
         current_input->channel = current_channel;
@@ -1130,17 +1098,16 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
             //     }
             //   }
             //  #endif /* LLSEC802154_ENABLED */
-              //LOG_ERR("Received packet with size %d, header len %d and payload len %d\n", current_input->len, header_len, frame.payload_len);
+
               /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
               if ((total_len = frame802154e_parse_information_elements((uint8_t *)current_input->payload + header_len, current_input->len - header_len - mic_len, &ies)) == -1)
               {
                 LOG_ERR("! parse_ies: failed to parse IEs\n");
               }
-              //LOG_ERR("ie len = %d, important? %d frame valid? %d\n", total_len, ies.ie_packet_important, frame_valid);
             }
 
             //In case of an important packet add it to input
-            if(!tsch_is_coordinator && total_len && frame.fcf.ie_list_present && ies.ie_packet_important)
+            if(!tsch_is_coordinator && total_len && frame.fcf.ie_list_present && ies.ie_overhearing)
             {
               /* Add current input to ringbuf */
               ringbufindex_put(&input_ringbuf);
@@ -1156,7 +1123,6 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
       tsch_radio_off(TSCH_RADIO_CMD_OFF_END_OF_TIMESLOT);
     }
 
-    //TODO: broadcast storm leads to packets for retransmits beeing not receied
     if(input_queue_drop != 0) {
       TSCH_LOG_ADD(tsch_log_message,
          snprintf(log->message, sizeof(log->message),
@@ -1171,8 +1137,8 @@ PT_THREAD(tsch_rx_slot(struct pt *pt, struct rtimer *t))
 }
 /*---------------------------------------------------------------------------*/
 int stop = 0;
-int upload_done = 0;
-int test_stop()
+
+int stop_tsch_timer()
 {
   stop = 1;
   return 1;
@@ -1182,39 +1148,24 @@ int test_stop()
  PT_THREAD(setUploadDone(struct pt *pt))
 {
   PT_BEGIN(pt)
-  printf("activate slot_operation\n");
+  LOG_DBG("activate slot_operation\n");
   stop = 0;
-  upload_done = 1;
   tsch_slot_operation_start();
   PT_END(pt);
 }
-
-// static 
-// PT_THREAD(testhere(struct pt *pt, struct rtimer *t))
-// {
-//   TSCH_DEBUG_INTERRUPT();
-//   PT_BEGIN(pt);
-//   printf("hi");
-
-//   ctimer_set(&timer, CLOCK_SECOND, (void (*)(void *)) isUploadDOne, t);
-
-//   PT_END(pt);
-// }
 
 /* Protothread for slot operation, called from rtimer interrupt
  * and scheduled from tsch_schedule_slot_operation */
 static
 PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
 {
-  //LOG_INFO("tsch_slot_operation \n");
   TSCH_DEBUG_INTERRUPT();
   PT_BEGIN(&slot_operation_pt);
   /* Loop over all active slots */
   while(tsch_is_associated) {
     if(stop)
     {
-      goto something;
-      //PT_YIELD(&slot_operation_pt);
+      PT_YIELD(&slot_operation_pt);
     }
 
     //TOGGLE_PIN_ADC6;
@@ -1239,19 +1190,6 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       /* Get a packet ready to be sent */
 
       current_packet = get_packet_and_neighbor_for_link(current_link, &current_neighbor);
-      // if(current_packet == NULL)
-      // {
-      //     TSCH_LOG_ADD(tsch_log_message,
-      //        "!current_packet is null before backup check");
-      // }
-      /*if (current_link->link_options == LINK_OPTION_TX){
-        printf("TX_slot: timeslot %u - addr %u - current_neighbor %u\n", current_link->timeslot, current_link->addr.u8[0], current_neighbor->addr.u8[0]);
-        if (current_packet == NULL){
-          //printf("packet NULL\n");
-        } else {
-          printf("we got a packet\n");
-        }
-      }*/
       /* There is no packet to send, and this link does not have Rx flag. Instead of doing
       * nothing, switch to the backup link (has Rx flag) if any. */
       if(current_packet == NULL && !(current_link->link_options & LINK_OPTION_RX) && backup_link != NULL) {
@@ -1299,9 +1237,6 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           static struct pt slot_rx_pt;
           PT_SPAWN(&slot_operation_pt, &slot_rx_pt, tsch_rx_slot(&slot_rx_pt, t));
         }
-        //leds_off(LEDS_RED);
-      //} else {
-      //  printf("current_packet = NULL\n");
       }else{
       // TSCH_LOG_ADD(tsch_log_message,
       //     snprintf(log->message, sizeof(log->message),
@@ -1362,7 +1297,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
       } while(!tsch_schedule_slot_operation(t, prev_slot_start, time_to_next_active_slot, "main"));
     }
 
-    something:
+    //interrupt_slot_operation:
     tsch_in_slot_operation = 0;
     PT_YIELD(&slot_operation_pt);
   }

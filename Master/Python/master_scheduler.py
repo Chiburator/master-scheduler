@@ -4,7 +4,7 @@ import sys
 import argparse
 import project_configuration as config
 from neighbor_parser import Parser
-from neighbor_parser_enhanced_beacon import Parser_EB
+from neighbor_parser_enhanced_beacon import Parser_EB, Data_table
 from flow import Flow
 from scheduling_configuration import Scheduling_algorithm, Scheduling_strategies, Scheduling_window_size_algorithm
 from scheduling import Schedule
@@ -73,7 +73,6 @@ def main():
   parser.add_argument('-p_prr', '--print_prr', help='Print PRR table', action='store_true')
   parser.add_argument('-p_rssi', '--print_rssi', help='Print RSSI table', action='store_true')
   parser.add_argument('-p_sched', '--print_schedule', help='Print Schedule', action='store_true')
-  parser.add_argument('-round', '--round', help='Log information for this run in a file: ''', type=int)
   args = parser.parse_args()
 
   if(args.folder != ''):
@@ -172,11 +171,6 @@ def main():
   else:
     max_etx = 10
 
-  if args.round:
-    round = args.round
-  else:
-    round = ''
-
   if args.with_contiki_schedule:
     generate_contiki_schedule = True
     if args.output_file:
@@ -223,9 +217,6 @@ def main():
 
   # Parse ETX-Metric received either from a log in a folder or via tcp
   if(folder):
-    # print(neighbor_parser.graph_etx)
-    # Call new class using new form of regex
-
     parser = Parser_EB(node_ids, folder, filename, max_etx)
     if (not parser.parse_neighbor_data(args.print_etx, args.print_prr, args.print_rssi)):
       print("Metric not finished!")
@@ -256,6 +247,12 @@ def main():
       print(line)
       parser.match_neighbor_data(line)
 
+    if(args.print_prr):
+      parser.print_parsed_data_table(Data_table.prr)
+
+    if(args.print_etx):
+      parser.print_parsed_data_table(Data_table.etx)
+
   flows = []
 
   for flow_id, communication in enumerate(communications):
@@ -270,27 +267,19 @@ def main():
     else:
       deadline = None
     flows.append(Flow(parser.graph_etx, flow_id+1, source, destination, release_time, deadline)) # , max_sub_flow_length)
-  
+
   schedule = Schedule(flows) # parser.graph_etx,
   schedule.create(etx_power, num_channels, scheduling_algorithm, scheduling_strategy, scheduling_window_size_alg, fixed_window_size)
 
-  schedule_information = "reports/schedule_information{}.txt".format(round)
-  schedule_information = os.path.normpath(os.path.join(os.getcwd(), schedule_information))
-  #open(schedule_information, 'w+').close()
-
   if args.print_schedule:
     print(schedule)
-    #schedule_information = os.path.normpath(os.path.join(os.getcwd(), schedule_information))
-
-    #with open(schedule_information, 'a') as file:
-      #file.write(str(schedule))
 
   if generate_contiki_schedule:
     contiki_schedule = Contiki_schedule(parser.graph_etx, schedule, node_ids, network_time_source)
-    contiki_schedule.generate("test.c", contiki_minimal_schedule_length, contiki_schedule_timesource)
-    #shutil.copy("test.c", "reports/c_file{}.c".format(round))
+    #contiki_schedule.generate("test.c", contiki_minimal_schedule_length, contiki_schedule_timesource)
     contiki_schedule.generate_for_enhanced_beacon(contiki_output_file, contiki_minimal_schedule_length, contiki_schedule_timesource, with_ttl_retransmissions)
 
+  #We have to read the serial output or the pipe operator will stop sending output at 64 KB
   lock = Lock()
   #clear raspi pipe or else the pipe will be blocket at 64 KB
   cpan = threading.Thread(target=thread_clear_raspi_pipe, args=("raspi08", 50000,lock,))

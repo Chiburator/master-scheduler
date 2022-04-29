@@ -116,7 +116,7 @@ tsch_queue_add_nbr(const linkaddr_t *addr)
         tsch_queue_backoff_reset(n);
         /* Add neighbor to the list */
         list_add(neighbor_list, n);
-        //LOG_ERR("Added nbr %d \n", n->addr.u8[NODE_ID_INDEX]);
+        LOG_ERR("Added nbr %d \n", n->addr.u8[NODE_ID_INDEX]);
       }
       tsch_release_lock();
     }

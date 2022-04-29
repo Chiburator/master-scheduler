@@ -47,6 +47,8 @@
 
 #define FRAME802154E_IE_MAX_LINKS       4
 
+
+
 /* Structures used for the Slotframe and Links information element */
 struct tsch_slotframe_and_links_link {
   uint16_t timeslot;
@@ -77,13 +79,13 @@ struct ieee802154_ies {
   uint16_t ie_tsch_timeslot[tsch_ts_elements_count];
   struct tsch_slotframe_and_links ie_tsch_slotframe_and_link;
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-  uint8_t ie_packet_important;
+  uint8_t ie_overhearing;
   uint16_t ie_sequence_number;
   uint8_t ie_rank;
   uint8_t ie_time_source;
   uint8_t ie_schedule_version;
   uint16_t ie_schedule_packets;
-  uint8_t ie_schedule_received[3];
+  uint8_t ie_schedule_received[FRAME802154E_IE_SCHEDULE_BIT_VECTOR];
 #endif /* TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY */
   /* Payload Long MLME IEs */
   uint8_t ie_channel_hopping_sequence_id;
@@ -133,7 +135,7 @@ int frame80215e_create_ie_tsch_timeslot(uint8_t *buf, int len,
 int frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-int frame80215e_create_ie_packet_important(uint8_t *buf, int len,
+int frame80215e_create_ie_overhearing(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 int frame80215e_create_ie_tsch_neighbor_discovery(uint8_t *buf, int len,
     struct ieee802154_ies *ies);

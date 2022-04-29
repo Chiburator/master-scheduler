@@ -11,6 +11,8 @@
   #include "net/master-routing/master-routing.h"
   #include "node-id.h"
   #include "lib/random.h"
+  #include "storage/cfs/cfs.h"
+  #include "storage/cfs/cfs-coffee.h"
 
   #include <string.h>
 
@@ -35,27 +37,15 @@ PROCESS_THREAD(master_unicast_process, ev, data)
   static struct etimer periodic_timer;
   static uint8_t payload[MASTER_MSG_LENGTH];
   static uint8_t own_receiver;
-  //uint8_t success;
 
   PROCESS_BEGIN();
-  
-  // GPIO_SET_OUTPUT(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_SET_PIN(GPIO_D_BASE, 0x04);
-  // GPIO_CLR_PIN(GPIO_D_BASE, 0x04);
+
+  //Reserve enough memory for the schedule in the beginning. Increse this latter if not enough
+  cfs_coffee_reserve(FILENAME, 10000);
 
   /* Initialize Master */
   init_master_routing();
   master_routing_set_input_callback(input_callback);
-
-  LOG_INFO("node_id: %u\n", node_id); 
 
   etimer_set(&periodic_timer, CLOCK_SECOND);
 
@@ -86,7 +76,6 @@ PROCESS_THREAD(master_unicast_process, ev, data)
     }
   } else {
     while (1){
-      printf("Not a sender\n");
       PROCESS_YIELD();
     }
   }

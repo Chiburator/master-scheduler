@@ -76,7 +76,7 @@ enum ieee802154e_mlme_short_subie_id {
   MLME_SHORT_IE_TSCH_MAC_METRICS_1,
   MLME_SHORT_IE_TSCH_MAC_METRICS_2,
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-  MLME_SHORT_IE_TSCH_IMPORTANT_PACKET = 0x37,
+  MLME_SHORT_IE_TSCH_OVERHEARING = 0x37,
   MLME_SHORT_IE_SEQUENCE_NUMBER ,
   MLME_SHORT_IE_RANK,
   MLME_SHORT_IE_TIME_SOURCE,
@@ -354,15 +354,15 @@ frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
 /* MLME sub-IE. Neighbor discovery. Used in EBs: sequence number */
 int
-frame80215e_create_ie_packet_important(uint8_t *buf, int len,
+frame80215e_create_ie_overhearing(uint8_t *buf, int len,
     struct ieee802154_ies *ies)
 {
   int ie_len = 1;
   if(len < 1 + ie_len || ies == NULL) {
     return -1;
   }
-  buf[2] = ies->ie_packet_important;
-  create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_TSCH_IMPORTANT_PACKET, ie_len);
+  buf[2] = ies->ie_overhearing;
+  create_mlme_short_ie_descriptor(buf, MLME_SHORT_IE_TSCH_OVERHEARING, ie_len);
   return 2 + ie_len;
 }
 
@@ -544,10 +544,10 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
       }
       break;
 #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-    case MLME_SHORT_IE_TSCH_IMPORTANT_PACKET:
+    case MLME_SHORT_IE_TSCH_OVERHEARING:
       if (len == 1){
         if (ies != NULL){
-          ies->ie_packet_important = buf[0];
+          ies->ie_overhearing = buf[0];
         }
         return len;
       }
@@ -594,7 +594,7 @@ frame802154e_parse_mlme_short_ie(const uint8_t *buf, int len,
       case MLME_SHORT_IE_SCHEDULE_RECEIVED:
       if(len == 3){
         if(ies != NULL){
-          memcpy(ies->ie_schedule_received, buf, 3);
+          memcpy(ies->ie_schedule_received, buf, FRAME802154E_IE_SCHEDULE_BIT_VECTOR);
         }
         return len;
       }

@@ -12,11 +12,10 @@
 #include "os/storage/cfs/cfs.h"
 #include "os/storage/cfs/cfs-coffee.h"
 
-#define FILENAME "meinTest.bin"
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "MASTER-S"
-#define LOG_LEVEL LOG_LEVEL_DBG
+#define LOG_LEVEL LOG_LEVEL_INFO
 
 PROCESS(serial_line_schedule_input, "Master scheduler serial line input");
 
@@ -25,8 +24,11 @@ uint8_t schedule_loading = 1;
 int fd;
 int bytes_in_flash;
 int idx_test;
+
+//Used to indicate if the file to read from is open
 uint8_t open = 0;
 
+/* Convert 2 bytes represented as ASCII characters back to one byte */
 uint8_t asciiHex_to_int(uint8_t *asciiHex)
 {
   if(*(asciiHex) == 0)
@@ -52,229 +54,150 @@ uint8_t asciiHex_to_int(uint8_t *asciiHex)
     HigherNibble = HigherNibble - (uint8_t)'0';
   }
 
-  
   uint8_t result = (HigherNibble << 4) + lowerNibble;
-  //LOG_ERR("READTEST make %d to %d and %d to %d = %d\n",*(asciiHex), lowerNibble,  *(asciiHex + 1), HigherNibble, result);
+
   return result;
 }
 
-void open_file(uint8_t mode)
+/* Open a file in flash memory to save the schedule */
+int open_file(uint8_t mode)
 {
-  open = 1;
-  fd = cfs_open(FILENAME, mode);
-  if(fd < 0) {
-    LOG_ERR("READTEST failed to open %s\n", FILENAME);
-    open = 0;
+  if(!open)
+  {
+    open = 1;
+    fd = cfs_open(FILENAME, mode);
+    if(fd < 0) {
+      LOG_ERR("failed to open %s\n", FILENAME);
+      open = 0;
+    }
   }
+  return open;
 }
 
-/* Only called from the Distributor when receiving data over serial input */
+/* Only called from the Distributor when receiving data over serial input.
+  Write the serial input to flash memory. */
 void write_to_flash(uint8_t * data)
 {
   int r = 0;
   int len = 0;
-  //int c = 0;
+
   while(*(data + len) != 0)
   {
-    // if(c == 19)
-    // {
-    //   c = 0;
-    //   printf("\n");
-    // }
     *(data + (len/2)) = asciiHex_to_int(data + len);
-    //printf("%x ", *(data + (len/2)));
     len += 2;
-    //c++;
   }
-  //printf("\n");
+
   r = cfs_write(fd, data, len/2);
   if(r != len/2) {
     LOG_ERR("Failed to write %d bytes to %s\n", len/2, FILENAME);
     cfs_close(fd);
+    open = 0;
     return;
   }
 
   bytes_in_flash += r;
-  LOG_ERR("Total bytes writen so far: %d \n", bytes_in_flash);
+  LOG_DBG("Total bytes writen so far: %d \n", bytes_in_flash);
 }
 
 /* Used by all nodes, except distributor node, when receiving the schedule over radio */
-void write_to_flash_offset(uint8_t * data, int offset, uint8_t len)
+uint8_t write_to_flash_offset(uint8_t * data, int offset, uint8_t len)
 {
-  if(!open)
+  if(!open_file(CFS_WRITE + CFS_READ))
   {
-    open_file(CFS_WRITE + CFS_READ);
+    return 0;
   }
 
   if(cfs_seek(fd, offset, CFS_SEEK_SET) != offset) {
-    printf("write to flash failed! seek failed!\n");
+    printf("seek failed! %i\n", offset);
     cfs_close(fd);
+    open = 0;
+    return 0;
   }
-  printf("write %i to %i\n", len, offset);
+
+  LOG_DBG("write %i to memory offset %i\n", len, offset);
+
   int wrote_bytes = cfs_write(fd, data, len);
   if(wrote_bytes != len) {
     LOG_ERR("Failed to write %d bytes to %s. Wrote %d\n", len, FILENAME, wrote_bytes);
     cfs_close(fd);
+    open = 0;
+    return 0;
   }
 
   bytes_in_flash += wrote_bytes;
-  LOG_ERR("Total bytes writen so far: %d \n", bytes_in_flash);
+  LOG_DBG("Total bytes writen so far: %d \n", bytes_in_flash);
+  return 1;
 }
 
 uint8_t read_flash(uint8_t * buf, int offset, uint8_t len)
 {
-  if(!open)
+  if(!open_file(CFS_WRITE + CFS_READ))
   {
-    open_file(CFS_WRITE + CFS_READ);
+    return 255;
   }
 
   if(cfs_seek(fd, offset, CFS_SEEK_SET) != offset) {
-    printf("seek failed\n");
+    LOG_ERR("seek failed %i\n", offset);
     cfs_close(fd);
+    open = 0;
+    return 255;
   }
 
   int read_bytes = cfs_read(fd, buf, len);
 
   if(read_bytes != len)
   {
-    printf("Error when reading from flash. Read %i, exptected %i\n", read_bytes, len);
+    LOG_ERR("Error when reading from flash. Read %i, exptected %i\n", read_bytes, len);
     cfs_close(fd);
     open = 0;
+    return 255;
   }
-  printf("read %i from requested %i bytes. Seek was %i\n", read_bytes, len, offset);
+
+  LOG_DBG("read %i from requested %i bytes. Seek was %i\n", read_bytes, len, offset);
   return read_bytes;
-}
-
-void get_next_link(scheduled_link_t *link)
-{
-  cfs_read(fd, link, 4);
-}
-
-void get_test(uint8_t *own_receiver, uint8_t *own_transmission_flow, uint8_t *links_len)
-{
-  cfs_read(fd, own_transmission_flow, 1);
-
-  //In this case own_transmission_flow = own_receiver = 0
-  if(*own_transmission_flow == 0)
-  {
-    *own_receiver = 0;
-  }
-  else{
-    cfs_read(fd, own_receiver, 1);
-  }
-
-  cfs_read(fd, links_len, 1);
-}
-
-uint8_t find_schedule(master_tsch_schedule_universall_config_t * config, int id)
-{
-  if(!open)
-  {
-    open_file(CFS_WRITE + CFS_READ);
-  }
-
-  if(cfs_seek(fd, 0, CFS_SEEK_SET) != 0) {
-    printf("READTEST seek failed\n");
-    cfs_close(fd);
-  }
-
-  uint16_t read_config_bytes = 0;
-  //First read the general config
-  //2 bytes for schedule length and flow number
-  read_config_bytes += cfs_read(fd, &schedule_config.schedule_length, 1);
-  read_config_bytes += cfs_read(fd, &schedule_config.slot_frames, 1);
-
-  //16 bytes for sender_of_flow and receiver_of_flow
-  read_config_bytes += cfs_read(fd, &schedule_config.sender_of_flow, MASTER_NUM_FLOWS);
-  read_config_bytes += cfs_read(fd, &schedule_config.receiver_of_flow, MASTER_NUM_FLOWS);
-
-  //16 bytes for first/last tx slot in flow
-  read_config_bytes += cfs_read(fd, &schedule_config.first_tx_slot_in_flow, MASTER_NUM_FLOWS);
-  read_config_bytes += cfs_read(fd, &schedule_config.last_tx_slot_in_flow, MASTER_NUM_FLOWS);
-
-  if(read_config_bytes != 4*MASTER_NUM_FLOWS + 2) {
-    LOG_ERR("Failed to read %d bytes, read only %d",4*MASTER_NUM_FLOWS + 2, read_config_bytes);
-    cfs_close(fd);
-    return 0;
-  }
-
-  LOG_DBG("Wrote %d for general config\n", read_config_bytes);
-
-  
-  uint8_t idx = 0;
-  uint16_t read_schedule_bytes = 0;
-  int total_bytes_read = 0;
-
-  cfs_read(fd, &idx, 1);
-  while(idx != id && total_bytes_read < bytes_in_flash)
-  {
-    printf("not our id (%i)\n", idx);
-    uint8_t trans_flow;
-    cfs_read(fd, &trans_flow, 1);
-
-    //In this case own_transmission_flow = own_receiver = 0
-    if(trans_flow != 0)
-    {
-      cfs_read(fd, &trans_flow, 1);
-    }
-
-    int links_len;
-    read_schedule_bytes += cfs_read(fd, &links_len, 1);
-
-    if(cfs_seek(fd, 16+links_len*4, CFS_SEEK_CUR) != 16+links_len*4) {
-      printf("READTEST seek failed %i\n", 16+links_len*4);
-      cfs_close(fd);
-    }
-  }
-
-  return idx == id;
 }
 
 uint8_t read_from_flash_by_id(master_tsch_schedule_universall_config_t * config, master_tsch_schedule_t * schedule, int id)
 {
-  if(!open)
+  if(!open_file(CFS_WRITE + CFS_READ))
   {
-    open_file(CFS_WRITE + CFS_READ);
+    return 0;
   }
 
   if(cfs_seek(fd, 0, CFS_SEEK_SET) != 0) {
-    printf("READTEST seek failed\n");
+    LOG_ERR("seek failed\n");
     cfs_close(fd);
+    open = 0;
+    return 0;
   }
 
   uint16_t read_config_bytes = 0;
+
   //First read the general config
   //2 bytes for schedule length and flow number
-  read_config_bytes += cfs_read(fd, &schedule_config.schedule_length, 1);
-  read_config_bytes += cfs_read(fd, &schedule_config.slot_frames, 1);
+  read_config_bytes += cfs_read(fd, &config->schedule_length, 1);
+  read_config_bytes += cfs_read(fd, &config->slot_frames, 1);
 
   //16 bytes for sender_of_flow and receiver_of_flow
-  read_config_bytes += cfs_read(fd, &schedule_config.sender_of_flow, MASTER_NUM_FLOWS);
-  read_config_bytes += cfs_read(fd, &schedule_config.receiver_of_flow, MASTER_NUM_FLOWS);
+  read_config_bytes += cfs_read(fd, &config->sender_of_flow, MASTER_NUM_FLOWS);
+  read_config_bytes += cfs_read(fd, &config->receiver_of_flow, MASTER_NUM_FLOWS);
 
   //16 bytes for first/last tx slot in flow
-  read_config_bytes += cfs_read(fd, &schedule_config.first_tx_slot_in_flow, MASTER_NUM_FLOWS);
-  read_config_bytes += cfs_read(fd, &schedule_config.last_tx_slot_in_flow, MASTER_NUM_FLOWS);
+  read_config_bytes += cfs_read(fd, &config->first_tx_slot_in_flow, MASTER_NUM_FLOWS);
+  read_config_bytes += cfs_read(fd, &config->last_tx_slot_in_flow, MASTER_NUM_FLOWS);
 
   if(read_config_bytes != 4*MASTER_NUM_FLOWS + 2) {
     LOG_ERR("Failed to read %d bytes, read only %d",4*MASTER_NUM_FLOWS + 2, read_config_bytes);
     cfs_close(fd);
+    open = 0;
     return 0;
   }
-
-  LOG_DBG("Wrote %d for general config\n", read_config_bytes);
 
   uint8_t idx = 0;
   uint16_t read_schedule_bytes = 0;
   int total_bytes_read = 0;
 
-  int i = 0;
-  char print_bytes[500] = {0};
-  int offset=0;
-
   do{
-    memset(print_bytes, 0, 500);
-    offset = 0;
     cfs_read(fd, &idx, 1);
 
     read_schedule_bytes = cfs_read(fd, &schedule->own_transmission_flow, 1);
@@ -289,42 +212,22 @@ uint8_t read_from_flash_by_id(master_tsch_schedule_universall_config_t * config,
     }
     read_schedule_bytes++;
 
-    offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->own_transmission_flow);
-    offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->own_receiver);
-
-
     //Read links
     read_schedule_bytes += cfs_read(fd, &schedule->links_len, 1);
     read_schedule_bytes += cfs_read(fd, &schedule->links, schedule->links_len * sizeof(scheduled_link_t));
 
-    offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->links_len);
-    // for(i = 0; i < schedule->links_len; i++)
-    // {
-    //   offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->links[i].slotframe_handle);
-    //   offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->links[i].send_receive);
-    //   offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->links[i].timeslot);
-    //   offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->links[i].channel_offset);
-    // }
-
     //Read MASTER_NUM_FLOW flow_forwards
     read_schedule_bytes += cfs_read(fd, &schedule->flow_forwards, 8);
-    for(i = 0; i < MASTER_NUM_FLOWS; i++)
-    {
-      offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->flow_forwards[i]);
-    }
-
 
     //Read MASTER_NUM_FLOW max_transmission
     read_schedule_bytes += cfs_read(fd, &schedule->max_transmission, 8);
-    for(i = 0; i < MASTER_NUM_FLOWS; i++)
-    {
-      offset += sprintf(&print_bytes[offset], "%i ", (int) schedule->max_transmission[i]);
-    }
+
     int total_size = schedule->links_len * sizeof(scheduled_link_t) + 2 * MASTER_NUM_FLOWS + 3;
 
     if(read_schedule_bytes != total_size) {
-      printf("Failed to read %d bytes, read only %d", total_size, read_schedule_bytes);
+      LOG_ERR("Failed to read %d bytes, read only %d", total_size, read_schedule_bytes);
       cfs_close(fd);
+      open = 0;
       return 0;
     }
     total_bytes_read += read_schedule_bytes;
@@ -338,12 +241,12 @@ uint8_t read_from_flash_by_id(master_tsch_schedule_universall_config_t * config,
 
   if(schedule->links > 0){
     LOG_DBG("Read %i bytes for id %i\n", read_schedule_bytes, id);
-    printf("read %s\n", print_bytes);
   }else{
     LOG_DBG("This node has nothing to do\n");
   }
 
   cfs_close(fd);
+  open = 0;
 
   return 1;
 }
@@ -353,12 +256,12 @@ void close_file()
  cfs_close(fd);
 }
 
-static struct pt test_pt;
-//static struct ctimer testctimer;
+static struct pt start_slot_operation_pt;
+
 PROCESS_THREAD(serial_line_schedule_input, ev, data)
 {
   PROCESS_BEGIN();
-  LOG_ERR("Started listening\n");
+  LOG_INFO("Started listening\n");
   fd = 0;
   bytes_in_flash = 0;
   idx_test= 0;
@@ -366,29 +269,29 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
   while(schedule_loading) {
     PROCESS_YIELD();
     if(ev == serial_line_event_message) {
-      LOG_ERR("Received input %s\n", (uint8_t *)data);
+      LOG_INFO("Received input %s\n", (uint8_t *)data);
     
       uint8_t message_prefix = asciiHex_to_int(data);
 
       switch ((int)message_prefix)
       {
       case MESSAGE_BEGIN:
-        printf("Message start\n");
+        LOG_DBG("Message start\n");
         open_file(CFS_WRITE + CFS_READ);
         write_to_flash((uint8_t *)(data + 2));
         break;
       case MESSAGE_CONTINUE:
-        printf("Message continues\n");
+        LOG_DBG("Message continues\n");
         write_to_flash((uint8_t *)(data + 2));
         break;
       case MESSAGE_END:
-        printf("Message end\n");
+        LOG_DBG("Message end\n");
         write_to_flash((uint8_t *)(data + 2));
 
         static struct pt child_pt;
-        PT_SPAWN(&test_pt, &child_pt, setUploadDone(&child_pt));
-        printf("Finish reading\n");
-        tsch_disasssociate_synch();
+        PT_SPAWN(&start_slot_operation_pt, &child_pt, setUploadDone(&child_pt));
+        LOG_INFO("Finish reading\n");
+        tsch_disassociate_synch();
         schedule_loading = 0;
 
         break;
@@ -399,7 +302,7 @@ PROCESS_THREAD(serial_line_schedule_input, ev, data)
     }
   }
 
-  LOG_ERR("Finished process serial input\n");
+  LOG_INFO("Finished process serial input\n");
   PROCESS_END();
 }
 

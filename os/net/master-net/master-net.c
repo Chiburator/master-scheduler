@@ -57,10 +57,6 @@
 
 uint8_t *masternet_buf;
 uint16_t masternet_len;
-//uint8_t command[2];
-
-packet_data_t packets[QUEUEBUF_CONF_NUM];
-uint8_t current_packet_index = 0;
 
 static masternet_input_callback current_input_callback = NULL;
 static mac_callback_t current_output_callback = NULL;
@@ -108,10 +104,8 @@ output(const linkaddr_t *dest)
 {
   int framer_hdrlen;
   int max_payload;
-  //command[0] = 0;
 
-  current_packet_index = (current_packet_index + 1) % QUEUEBUF_CONF_NUM;
-
+  //TODO:: what if the packet add failes. then we incremented the buffer already
   leds_on(LEDS_YELLOW);
 
   packetbuf_clear();
@@ -122,7 +116,7 @@ output(const linkaddr_t *dest)
     //set max_transmissions
     packetbuf_set_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS, packet_configuration.max_tx);
     packetbuf_set_attr(PACKETBUF_ATTR_PACKET_NUMBER, packet_configuration.packet_nbr);
-
+    packetbuf_set_attr(PACKETBUF_ATTR_PACKET_COMMAND, packet_configuration.command);
 #   if TSCH_FLOW_BASED_QUEUES
       //packetbuf set flow number
       packetbuf_set_attr(PACKETBUF_ATTR_FLOW_NUMBER, packet_configuration.flow_number);
@@ -138,14 +132,18 @@ output(const linkaddr_t *dest)
     //The command will be transformed to a uint8_t
     //command[0] = packet_configuration.command;
     //LOG_INFO("Set command to %d\n", packet_configuration.command);
-    packets[current_packet_index].command = packet_configuration.command;
-    packets[current_packet_index].packet_nbr = packet_configuration.packet_nbr;
+    //packets[current_packet_index].command = packet_configuration.command;
+    //packets[current_packet_index].packet_nbr = packet_configuration.packet_nbr;
 
-    packetbuf_set_attr(PACKETBUF_ATTR_MAC_METADATA, packet_configuration.important_packet);
+    packetbuf_set_attr(PACKETBUF_ATTR_MAC_METADATA, packet_configuration.overhearing_active);
   #if TSCH_WITH_CENTRAL_SCHEDULING && TSCH_FLOW_BASED_QUEUES
     packetbuf_set_attr(PACKETBUF_ATTR_SEND_NBR, packet_configuration.send_to_nbr);
   #endif
   #endif
+    // LOG_INFO("Sending with max tx %i, ttl_slot_numner %i, earliest tx %i to dest %i\n", packet_configuration.max_tx, 
+    // packet_configuration.ttl_slot_number, 
+    // packet_configuration.earliest_tx_slot,
+    // dest->u8[7]);
   }
 
   if(dest != NULL) {
@@ -164,7 +162,8 @@ output(const linkaddr_t *dest)
   #if TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
     //The command will be transformed to a uint8_t
     //command[1] = framer_hdrlen;
-    packets[current_packet_index].hdr_len = framer_hdrlen;
+    //packets[current_packet_index].hdr_len = framer_hdrlen;
+    packetbuf_set_attr(PACKETBUF_ATTR_PACKET_HDR_SIZE, framer_hdrlen);
   #endif
 
   max_payload = MAC_MAX_PAYLOAD - framer_hdrlen;
@@ -175,8 +174,8 @@ output(const linkaddr_t *dest)
     //LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
     //LOG_INFO_("\n");
     leds_off(LEDS_YELLOW);
-    NETSTACK_MAC.send(current_output_callback, &packets[current_packet_index]);
-    //LOG_DBG("Masternet send to %i\n", packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[NODE_ID_INDEX]);
+    NETSTACK_MAC.send(current_output_callback, NULL);
+    LOG_DBG("Masternet send to %i\n", packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[NODE_ID_INDEX]);
     return 1;
   } else {
     LOG_ERR("sending failed: %u bytes of %u possible bytes to ", masternet_len, max_payload);

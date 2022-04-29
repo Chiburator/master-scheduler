@@ -14,7 +14,7 @@
 #include "contiki.h"
 
 #ifdef TSCH_PACKET_EB_WITH_NEIGHBOR_DISCOVERY
-#define HASH_MAP_SIZE 30
+#define HASH_MAP_SIZE 40
 #else
 #ifdef HASH_MAP_CONF_SIZE
 #define HASH_MAP_SIZE HASH_MAP_CONF_SIZE
