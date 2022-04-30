@@ -561,56 +561,6 @@ int tsch_packet_create_unicast()
 
   return 1;
 }
-
-
-int tsch_packet_parse_unicast(const uint8_t *buf, int buf_size, 
-  struct ieee802154_ies *ies, uint8_t *hdr_len, uint8_t *ie_len, int frame_without_mic)
-{
-  if (buf_size < 0 || hdr_len == NULL || ie_len == NULL)
-  {
-    LOG_WARN("function call with wrong parameters!\n");
-    return 0;
-  }
-
-  /* Parse 802.15.4-2006 frame, i.e. all fields before Information Elements */
-  if ((*hdr_len = NETSTACK_FRAMER.parse()) == 0)
-  {
-    LOG_ERR("! parse_eb: failed to parse frame\n");
-    return 0;
-  }
-
-  if (ies != NULL)
-  {
-    memset(ies, 0, sizeof(struct ieee802154_ies));
-  }
-
-  if (packetbuf_attr(PACKETBUF_ATTR_MAC_METADATA))
-  {
-    /* Calculate space needed for the security MIC, if any, before attempting to parse IEs */
-    int mic_len = 0;
-#if LLSEC802154_ENABLED
-    if (!frame_without_mic)
-    {
-      mic_len = tsch_security_mic_len(&frame);
-      if (buf_size < curr_len + mic_len)
-      {
-        return 0;
-      }
-    }
-#endif /* LLSEC802154_ENABLED */
-    //LOG_ERR("Received packet with size %d, header len %d\n", buf_size, hdr_len);
-    /* Parse information elements. We need to substract the MIC length, as the exact payload len is needed while parsing */
-    //ret_value should be all IE's in len
-    if ((*ie_len = frame802154e_parse_information_elements(buf + *hdr_len, buf_size - *hdr_len - mic_len, ies)) == -1)
-    {
-      LOG_ERR("! parse_ies: failed to parse IEs\n");
-    }
-  }
-
-  LOG_ERR("ie length = %d and hdr length = %d\n", *ie_len, *hdr_len);
-  return 1;
-}
-
 #endif
 
 /*---------------------------------------------------------------------------*/

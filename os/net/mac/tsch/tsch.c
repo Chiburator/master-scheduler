@@ -128,7 +128,7 @@ struct eb_stat
 NBR_TABLE(struct eb_stat, eb_stats);
 #endif /* TSCH_AUTOSELECT_TIME_SOURCE */
 
-uint8_t schedule_received[3] = {0};
+uint8_t schedule_received[FRAME802154E_IE_SCHEDULE_BIT_VECTOR] = {0};
 
 /* TSCH channel hopping sequence */
 uint8_t tsch_hopping_sequence[TSCH_HOPPING_SEQUENCE_MAX_LEN];
@@ -210,6 +210,11 @@ static void packet_input(void);
 
 /* Getters and setters */
 /*---------------------------------------------------------------------------*/
+void tsch_set_schedule_difference_callback(master_routing_schedule_difference_callback callback)
+{
+  schedule_difference_callback = callback;
+}
+
 void tsch_set_schedule_received_callback(master_callback_check_received_schedules callback)
 {
   schedule_received_callback = callback;
@@ -218,11 +223,6 @@ void tsch_set_schedule_received_callback(master_callback_check_received_schedule
 void tsch_reset_schedule_received_callback()
 {
   schedule_received_callback = NULL;
-}
-
-void tsch_set_schedule_difference_callback(master_routing_schedule_difference_callback callback)
-{
-  schedule_difference_callback = callback;
 }
 /*---------------------------------------------------------------------------*/
 void tsch_set_coordinator(int enable)

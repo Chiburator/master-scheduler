@@ -201,9 +201,11 @@ extern int tsch_is_pan_secured;
 /* The TSCH MAC driver */
 extern const struct mac_driver tschmac_driver;
 
-//extern uint8_t num_eb_packets;
-//extern uint8_t num_packets;
+//Variable to allow time source switches
+extern uint8_t tsch_change_time_source_active;
 
+//local bit-vector of all the nodes that received the schedule.
+extern uint8_t schedule_received[FRAME802154E_IE_SCHEDULE_BIT_VECTOR];
 /********** Functions *********/
 
 /**
@@ -214,13 +216,26 @@ typedef void (* master_callback_check_received_schedules)(uint8_t *schedule_rece
 
 extern process_event_t tsch_associated_to_network;
 
-/**
- * Set input callback for MasterRouting
- *
- * \param callback The input callback
+/** @brief Set a callback for Master-Routing.
+ * 
+ * This will be called after an EB to check difference in schedule versions.
+ * 
+ * @param command the callback function to master
 */
 void tsch_set_schedule_difference_callback(master_routing_schedule_difference_callback callback);
+
+/** @brief Set a callback for Master-Routing.
+ * 
+ * This will be called after an EB input to check if all nodes received the schedule.
+ * 
+ * @param callback the callback function to master
+*/
 void tsch_set_schedule_received_callback(master_callback_check_received_schedules callback);
+
+/** @brief Remove the callback.
+ * 
+ * This will remove the callback for the bit-vector containing information for received schedules.
+*/
 void tsch_reset_schedule_received_callback();
 
 /* The the TSCH join priority */
@@ -236,13 +251,10 @@ void tsch_set_pan_secured(int enable);
 /* Set the node rank of the node */
 void tsch_set_rank(int rank);
 
-/* Add a synchronized disassociation function callable from upper layer */
+/** @brief Add a synchronized disassociation function callable from upper layer 
+ * 
+ * This is requiered for the distributor nodes to leave the network before starting the TSCH synchronization again.
+*/
 void tsch_disassociate_synch(void);
-
-//extern uint8_t tsch_eb_active;
-extern uint8_t tsch_change_time_source_active;
-extern uint8_t cycles_since_last_timesource_eb; //This variable is incremented each cycle (when a node sends an eb) and reset once we receive an eb from the time source
-extern uint8_t schedule_received[3];
-
 #endif /* __TSCH_H__ */
 /** @} */

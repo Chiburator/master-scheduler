@@ -60,18 +60,15 @@ int simCFSWritten = 0;
 int
 cfs_open(const char *n, int f)
 {
-  printf("Open cfs. buff size %i\n", CFS_BUF_SIZE);
   if(file.flag == FLAG_FILE_CLOSED) {
     file.flag = FLAG_FILE_OPEN;
     file.access = f;
     file.fileptr = 0;
-    printf("Set file->end to %i\n",simCFSSize);
     file.endptr = simCFSSize;
     if(f & CFS_WRITE) {
       if(f & CFS_APPEND) {
         file.fileptr = file.endptr;
       } else {
-        printf("Set file->end to 0\n");
         file.endptr = 0;
       }
     }
@@ -93,7 +90,6 @@ cfs_read(int f, void *buf, unsigned int len)
 
 	if(file.flag == FLAG_FILE_OPEN && file.access & CFS_READ) {
 		if(file.fileptr + len >= file.endptr) {
-      printf("offset too far: pointer %i, len %u and end %i\n", file.fileptr, len, file.endptr);
 			len = file.endptr - file.fileptr;
 		}
 		memcpy(buf, &simCFSData[file.fileptr], len);
@@ -102,7 +98,6 @@ cfs_read(int f, void *buf, unsigned int len)
 		simCFSRead += len;
     return len;
   } else {
-    printf("Flag is %i and access %i\n", file.flag, file.access);
     return -1;
   }
 }
@@ -110,7 +105,6 @@ cfs_read(int f, void *buf, unsigned int len)
 int
 cfs_write(int f, const void *buf, unsigned int len)
 {
-  printf("cfs write\n");
 	if(file.flag == FLAG_FILE_OPEN && file.access & CFS_WRITE) {
 		if(file.fileptr + len > CFS_BUF_SIZE) {
 			len = CFS_BUF_SIZE - file.fileptr;
@@ -121,11 +115,9 @@ cfs_write(int f, const void *buf, unsigned int len)
 		simCFSChanged = 1;
 		simCFSWritten += len;
 		if(file.fileptr > file.endptr) {
-      printf("file end set to %i\n", file.fileptr);
 			file.endptr = file.fileptr;
 		}
 		if(file.fileptr > simCFSSize) {
-      printf("simCFSSize set to %i\n", file.endptr);
 			simCFSSize = file.fileptr;
 		}
     return len;
@@ -137,7 +129,6 @@ cfs_write(int f, const void *buf, unsigned int len)
 cfs_offset_t
 cfs_seek(int f, cfs_offset_t o, int w)
 {
-  printf("cfs seek\n");
   if(file.flag == FLAG_FILE_OPEN) {
   	if(w == CFS_SEEK_SET) {
     	file.fileptr = o;
@@ -148,16 +139,10 @@ cfs_seek(int f, cfs_offset_t o, int w)
   	}
   	if(file.fileptr >= 0 && file.fileptr <= CFS_BUF_SIZE) {
   		if(file.fileptr > file.endptr) {
-        printf("file end set to %i, since file->ptr %i > file->endptr %i\n", file.fileptr, file.fileptr, file.endptr);
   			file.endptr = file.fileptr;
   		}
-      printf("filepointer ok %i\n", file.fileptr);
 		  return file.fileptr;
-  	}else{
-      printf("Offset too long %i, offset %ld\n", file.fileptr, CFS_BUF_SIZE);
-    }
-  }else{
-    printf("File not open\n");
+  	}
   }
   return -1;
 }

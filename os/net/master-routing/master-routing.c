@@ -53,8 +53,6 @@
 #include "net/mac/tsch/tsch-private.h"
 #include "sys/testbed.h"
 #include "node-id.h"
-#include "net/master-net/master-net.h"
-#include "master-schedule.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -95,7 +93,7 @@
 //Once we are associated to the network again, a poll for an event will be sent
 PROCESS(distributor_callback, "Master distributor node callback");
 
-/*Deployment node count*/
+/*Deployment node count, bit-vector for received parts of the metric and the schedule initialization*/
 #if TESTBED == TESTBED_COOJA
   static const uint8_t deployment_node_count = NUM_COOJA_NODES;
 
@@ -133,6 +131,7 @@ static linkaddr_t destination = {{0x00, 0x12, 0x4B, 0x00, 0x00, 0x00, 0x00, 0x00
 static linkaddr_t destination = {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
 #endif
 
+/* The general configuration for the schedule that is the same for each node */
 master_tsch_schedule_universall_config_t schedule_config = {0};
 
 static master_routing_packet_t mrp; // masternet_routing_packet   (mrp)
@@ -181,6 +180,7 @@ static struct ctimer missing_response_to_request_timer;
 
 //Timer for the CPAN to ask the network when a metric is missing
 static struct ctimer missing_metric_timer;
+
 //Stop printing metrics once all are complete
 uint8_t metric_complete = 0;
 
@@ -244,12 +244,17 @@ PROCESS_THREAD(distributor_callback, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
+/** @brief Set the destination address
+ * 
+ *  @param destination_node_id the node id of the destination
+ */
 static void set_destination_link_addr(uint8_t destination_node_id)
 {
   destination.u8[NODE_ID_INDEX] = destination_node_id;
 }
 
-/* Callback after a timeout to receive missing metric requests again */
+/** @brief Callback after a timeout to receive missing metric requests again
+ */
 static void activate_missing_metric_requests()
 {
   ingore_missing_metric_requests = 0;
@@ -296,7 +301,6 @@ void set_ttl_retransmissions()
 }
 #endif //TSCH_TTL_BASED_RETRANSMISSIONS
 
-/* Once the schedule is distributed, reset the flag that was used while the etx-metric was gathered */
 void reset_nbr_metric_received()
 {
   struct tsch_neighbor *n = tsch_queue_first_nbr();
@@ -308,13 +312,11 @@ void reset_nbr_metric_received()
   }
 }
 
-/* Every noded will send beacons on the timeslot that is their node id - 1 */
 uint8_t get_beacon_slot()
 {
   return get_tx_slot(node_id);
 }
 
-/* Prepare the master_packetbuf_config_t for MASTER-NET */
 void setup_packet_configuration(uint16_t etx_link, uint8_t command, uint16_t packet_number, uint8_t overhearing_active)
 {
   if (etx_link % 1000 > 0)
@@ -384,8 +386,6 @@ void master_schedule_loaded_callback()
 {
   LOG_INFO("Schedule loaded. Start Distribution\n");
 
-  //As the CPAN, the schedule is already complete after we arrive at this callback.
-  //Initialize distribution as CPAN
   handle_state_change(ST_SCHEDULE_DIST);
 
   mrp.flow_number = node_id;
@@ -480,7 +480,6 @@ void install_schedule(){
   LOG_INFO("Schedule installed!\n");
 }
 
-/* Change the link if required to a destination address at a timeslot */
 void change_link(int link_type, const linkaddr_t* dest, uint16_t timeslot)
 {
   if(linkaddr_cmp(&tsch_schedule_get_link_by_timeslot(sf[1], timeslot)->addr, dest) == 0)
@@ -489,7 +488,6 @@ void change_link(int link_type, const linkaddr_t* dest, uint16_t timeslot)
   }
 }
 
-/* Send a poll request to a neighbor to receive the etx-metric from this node and his neighbors */
 void convergcast_poll_neighbor(enum commands command, struct tsch_neighbor * dest)
 {
   // Prepare packet for get metric command
@@ -506,18 +504,15 @@ void convergcast_poll_neighbor(enum commands command, struct tsch_neighbor * des
   NETSTACK_NETWORK.output(&dest->addr);
 }
 
-/* Forward the nodes own and other received etx-metrics to the time source */
 void convergcast_forward_to_timesource()
 {
   setup_packet_configuration(tsch_queue_get_time_source()->etx_link, CM_ETX_METRIC_SEND, mrp.packet_number, 0);
 
   change_link(LINK_TYPE_ADVERTISING, &tsch_queue_get_time_source()->addr, get_beacon_slot());
 
-  //LOG_INFO("Sending ETX-Links to %u with size %d, flow_number %i, packet_num %i and retransmits = %i\n", tsch_queue_get_time_source()->addr.u8[NODE_ID_INDEX],  masternet_len, mrp.flow_number, mrp.packet_number, sent_packet_configuration.max_tx);
   NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
 }
 
-/* Depending on the state, send packets to time_source or poll a neighbor for their metric */
 void handle_convergcast()
 {
   if (current_state == ST_POLL_NEIGHBOUR)
@@ -529,7 +524,6 @@ void handle_convergcast()
   }
 }
 
-/* Log the received etx-metric */
 void print_metric(uint8_t *metric, uint8_t metric_owner, uint16_t len)
 {
   int i;
@@ -554,7 +548,6 @@ void print_metric(uint8_t *metric, uint8_t metric_owner, uint16_t len)
   printf("ETX-Links - FROM %i; %s\n", metric_owner, str);
 }
 
-/* Put the already calculated metrics to an array */
 int calculate_etx_metric()
 {
   struct tsch_neighbor *nbr = tsch_queue_first_nbr();
@@ -577,7 +570,8 @@ int calculate_etx_metric()
 }
 
 /*---------------------------------------------------------------------------*/
-/* Activate metric gathering for the Network. This has to be started by the CPAN*/
+/** @brief Activate metric gathering for the Network. This is started by the CPAN 
+ */
 static void master_start_metric_gathering(void *ptr)
 {
   LOG_INFO("Starting metric gathering\n");
@@ -594,7 +588,8 @@ static void master_start_metric_gathering(void *ptr)
   handle_convergcast();
 }
 
-/*Before starting metric gathering, leave enough time for the network to propagate all time source changes through beacons */
+/** @brief Before starting metric gathering, leave enough time for the network to propagate all time source changes through beacons.
+ */
 static void finalize_neighbor_discovery(void *ptr)
 {
   LOG_DBG("Deactivate neighbor switching. nbrs = %i\n", tsch_queue_count_nbr());
@@ -611,8 +606,7 @@ static void finalize_neighbor_discovery(void *ptr)
 #endif
   }
 }
-/*---------------------------------------------------------------------------*/
-/* Set the callback from a higher application layer to receive packets */ 
+
 void master_routing_set_input_callback(master_routing_input_callback callback)
 {
   if (current_state != ST_SCHEDULE_INSTALLED)
@@ -622,7 +616,6 @@ void master_routing_set_input_callback(master_routing_input_callback callback)
   current_callback = callback;
 }
 
-/* Handle the case when retransmits are requested and the requested packet was transmitted */
 void handle_retransmit()
 {
   //Check if there are other neighbors containing packets for retransmitting
@@ -642,7 +635,6 @@ void handle_retransmit()
   }
 }
 
-/* Check for missing packets. If all packets are received, finish the schedule gathering. Otherwise send next request for a missing packet */
 void request_retransmit_or_finish(const linkaddr_t * destination)
 {
   //Only search for packets if we still dont have the whole schedule
@@ -695,15 +687,12 @@ void request_retransmit_or_finish(const linkaddr_t * destination)
   }
 }
 
-/*---------------------------------------------------------------------------*/
-
 void missing_response()
 {
   change_link(LINK_TYPE_ADVERTISING, &tsch_broadcast_address, get_beacon_slot());
   handle_state_change(ST_WAIT_FOR_SCHEDULE);
 }
 
-/* The callback for TSCH eb_received. Check if the network received the schedule on all nodes */
 void master_schedule_received_callback(uint8_t *schedule_received_from_others, uint8_t len)
 {
   //To save time, dont even try to compare the received schedules if this is not event the current phase
@@ -785,7 +774,10 @@ void master_schedule_difference_callback(linkaddr_t * nbr, uint8_t nbr_schedule_
   }
 }
 
-/* On a timeout, send a braodcast for the node IDs that we miss the metric for*/
+/** @brief On a timeout, send a braodcast for the node IDs that we miss the metric for.
+ * 
+ *  @param ptr currently unused.
+ */
 static void missing_metric_timeout(void *ptr)
 {
   handle_state_change(ST_SEARCH_MISSING_METRIC);
@@ -823,8 +815,6 @@ static void missing_metric_timeout(void *ptr)
   ctimer_restart(&missing_metric_timer);
 }
 
-/*---------------------------------------------------------------------------*/
-/* Depending on the state, set other flags for TSCH and MASTER */
 void handle_state_change(enum phase new_state)
 {
   switch (new_state)
@@ -871,10 +861,10 @@ void handle_state_change(enum phase new_state)
   current_state = new_state;
 }
 
-/* Get the next neighbour that has this node as his time source */
 int has_next_neighbor()
 {
-  //We are starting the search for a nbr. find first dest adress
+  // We are starting the search with the broadcast address. After we polled every neighbor,
+  // we set the 'next_dest' variable to NULL. Stop searching at this point
   if(next_dest == NULL)
   {
     return 0;
@@ -882,6 +872,7 @@ int has_next_neighbor()
 
   if(linkaddr_cmp(&next_dest->addr, &tsch_broadcast_address))
   {
+    //First call. Find the first neighbor
     next_dest = tsch_queue_first_nbr();
     while (next_dest->time_source != linkaddr_node_addr.u8[NODE_ID_INDEX])
     {
@@ -893,6 +884,7 @@ int has_next_neighbor()
       }
     }
   }else{
+    //Follow up calls. Find the remaining neighbors
     do
     {
       next_dest = tsch_queue_next_nbr(next_dest);
@@ -908,9 +900,8 @@ int has_next_neighbor()
   return 1;
 }
 
-/* Handle the cases where the packets are distributed the first time in the network.
- * We do not handle retransmits here already since there is a speciall callback for this case.
- */
+//------------------------------------------------------------------------------------
+
 int handle_schedule_distribution_state_changes(enum commands command, uint16_t len)
 {
   int result = -1;
@@ -919,7 +910,7 @@ int handle_schedule_distribution_state_changes(enum commands command, uint16_t l
   if((command == CM_SCHEDULE) && (isBitSet(received_packets_as_bit_array, mrp.data[1]) == 0))
   {
     handle_state_change(ST_SCHEDULE_DIST);
-    command_input_schedule_packet(command, len);
+    command_input_schedule_packet(len);
     result = 1;
   }
 
@@ -927,7 +918,7 @@ int handle_schedule_distribution_state_changes(enum commands command, uint16_t l
   if((command == CM_SCHEDULE_END) && (isBitSet(received_packets_as_bit_array, mrp.data[1]) == 0))
   {
     handle_state_change(ST_SCHEDULE_DIST);
-    command_input_schedule_last_packet(command, len);
+    command_input_schedule_last_packet(len);
     result = 1;
   }
 
@@ -949,13 +940,11 @@ int handle_schedule_distribution_state_changes(enum commands command, uint16_t l
   return result;
 }
 
-/* Handle the callback for the initial schedule distribution by the CPAN */
 void callback_input_schedule_send()
 {
-  //Only CPAN is sending packet after packet. Other Nodes only receive
+  //Only the distributor node is sending packet after packet. Other Nodes only receive
   if(node_id != MASTER_TSCH_DISTRIBUTOR)
   {
-    //LOG_INFO("Nothing to do after resending a schedule as a normal node\n");
     return;
   }
 
@@ -988,7 +977,6 @@ void callback_input_schedule_send()
   NETSTACK_NETWORK.output(&tsch_broadcast_address);
 }
 
-/* Logic for the convergast that is depending on the next state */
 void callback_convergcast(enum phase next_state)
 {
   //In case the link to the time source already exists, dont remove and add it again
@@ -1015,7 +1003,6 @@ void callback_convergcast(enum phase next_state)
   }
 }
 
-/* Handle the incoming data and pass it to the upper layer */
 void command_input_data_received(uint16_t received_asn, uint16_t len)
 {
   //filter out duplicate packets by remebering the last received packet for a flow
@@ -1031,8 +1018,7 @@ void command_input_data_received(uint16_t received_asn, uint16_t len)
   }  
 }
 
-/* Forward the packet to the next node in the flow */
-void command_input_data_forwarding(struct master_tsch_schedule_t* schedule, uint16_t received_asn, uint16_t len)
+void command_input_data_forwarding(master_tsch_schedule_t* schedule, uint16_t received_asn, uint16_t len)
 {
   // forward Packet
   uint8_t next_receiver = get_forward_dest(schedule, mrp.flow_number);
@@ -1077,7 +1063,7 @@ void command_input_data_forwarding(struct master_tsch_schedule_t* schedule, uint
     }
     else
     {
-      printf("received %u duplicate from flow %u at ASN %u for relay\n", mrp.packet_number, mrp.flow_number, received_asn);
+      LOG_INFO("received %u duplicate from flow %u at ASN %u for relay\n", mrp.packet_number, mrp.flow_number, received_asn);
     }
   }
   else
@@ -1086,7 +1072,6 @@ void command_input_data_forwarding(struct master_tsch_schedule_t* schedule, uint
   }
 }
 
-/* Handle a retransmitted packet*/
 void command_input_schedule_retransmitt(uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
   //Get the schedule packet number
@@ -1131,7 +1116,6 @@ void command_input_schedule_retransmitt(uint16_t len, const linkaddr_t *src, con
   }
 }
 
-/* Handle behaviour in case of a request for a retransmit from another node */
 void command_input_schedule_retransmitt_request(const linkaddr_t *src)
 {
   //While parsing and retransmitting, the src addr becomes null. Save the address localy
@@ -1167,14 +1151,13 @@ void command_input_schedule_retransmitt_request(const linkaddr_t *src)
   //If we receive requests to retransmit parts of the schedule, we add them to the queue of the neighbor
   //When changing the link to a requester for a retransmit, check if we are looking at the broadcast address:
   //If broadcast address -> this is the first request for a retransmit. Change to requester and the packet will be sent
-  //If not broadcast address -> we already send a retransmit to another nbr. Link change will be perfmored later in the callback
+  //If this is not a broadcast address -> we already send a retransmit to another nbr. Link change will be perfmored later in the callback
   if(linkaddr_cmp(&tsch_schedule_get_link_by_timeslot(sf[1], get_beacon_slot())->addr, &tsch_broadcast_address) != 0)
   {
     tsch_schedule_add_link(sf[1], LINK_OPTION_TX, LINK_TYPE_ADVERTISING, &source_addr, get_beacon_slot(), 0);
   }
 }
 
-/* Unpack a schedule packet and mark it as received */
 void command_input_schedule_new_packet(uint16_t len)
 {
   //Unpack into the schedule structure
@@ -1185,10 +1168,20 @@ void command_input_schedule_new_packet(uint16_t len)
   }
 }
 
-/* Handle a packet containing the last part of the TSCH schedule */
-void command_input_schedule_last_packet(enum commands command, uint16_t len)
+void command_input_schedule_packet(uint16_t len)
 {
-  LOG_DBG("---------------- Packet Nr.%d (last packet + forward)\n", mrp.data[1]);
+  LOG_DBG("---------------- Packet Nr.%d\n", mrp.data[1]);
+
+  command_input_schedule_new_packet(len);
+
+  setup_packet_configuration(10, CM_SCHEDULE, mrp.packet_number, 0);
+  masternet_len = len;
+  NETSTACK_NETWORK.output(&tsch_broadcast_address);
+}
+
+void command_input_schedule_last_packet(uint16_t len)
+{
+  LOG_DBG("---------------- Packet Nr.%d (last packet)\n", mrp.data[1]);
 
   command_input_schedule_new_packet(len);
 
@@ -1209,27 +1202,13 @@ void command_input_schedule_last_packet(enum commands command, uint16_t len)
   }
   tsch_change_time_source_active = 1;
 
-  setup_packet_configuration(10, command, mrp.packet_number, 0);
+  setup_packet_configuration(10, CM_SCHEDULE_END, mrp.packet_number, 0);
 
   masternet_len = len;
   NETSTACK_NETWORK.output(&tsch_broadcast_address);
 
 }
 
-/* Handle a packet containing a part of the TSCH schedule */
-void command_input_schedule_packet(enum commands command, uint16_t len)
-{
-  LOG_DBG("---------------- Packet Nr.%d (forward packet)\n", mrp.data[1]);
-
-  command_input_schedule_new_packet(len);
-
-  setup_packet_configuration(10, command, mrp.packet_number, 0);
-  masternet_len = len;
-  NETSTACK_NETWORK.output(&tsch_broadcast_address);
-}
-
-/* Search the missing node ids. If this node is in the list, return 1. Otherwise return 0
-*/
 int missing_metric_from_myself()
 {
   uint8_t len = mrp.data[1];
@@ -1249,8 +1228,6 @@ int missing_metric_from_myself()
   return 0;
 }
 
-/* Search the neighbors for missing node metrics. 1 if a neighbor is set as the next_dest. 0 otherwise
-*/
 struct tsch_neighbor * has_missing_node_as_nbr()
 {
   //First check if we have any of the nodes as neighbors that are missing
@@ -1288,25 +1265,6 @@ struct tsch_neighbor * has_missing_node_as_nbr()
   return current_choice;
 }
 
-/* The distributor node received a request from the CPAN to prepare the serial input for the schedule.
-  First we send a notification that we are ready */
-void command_input_prepare_distributor()
-{
-  mrp.flow_number = node_id;
-  mrp.packet_number = ++own_packet_number;
-  uint8_t command = CM_START_DIST_COMMIT;
-  memcpy(&(mrp.data), &command, sizeof(uint8_t));
-
-  masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
-
-  setup_packet_configuration(tsch_queue_get_time_source()->etx_link, command, mrp.packet_number, 0);
-
-  change_link(LINK_TYPE_NORMAL, &tsch_queue_get_time_source()->addr, get_beacon_slot());
-
-  NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
-}
-
-/* We received a command indicating the missing ETX-links. */
 void command_input_missing_metric(int len)
 {
   struct tsch_neighbor * to_poll = has_missing_node_as_nbr();
@@ -1332,9 +1290,22 @@ void command_input_missing_metric(int len)
   }
 }
 
-/* Handle the poll from a neighbor node demanding the ETX-metric.
- * CPAN will start the gathering. Other Nodes will react and poll their neighbors.
-*/
+void command_input_prepare_distributor()
+{
+  mrp.flow_number = node_id;
+  mrp.packet_number = ++own_packet_number;
+  uint8_t command = CM_START_DIST_COMMIT;
+  memcpy(&(mrp.data), &command, sizeof(uint8_t));
+
+  masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
+
+  setup_packet_configuration(tsch_queue_get_time_source()->etx_link, command, mrp.packet_number, 0);
+
+  change_link(LINK_TYPE_NORMAL, &tsch_queue_get_time_source()->addr, get_beacon_slot());
+
+  NETSTACK_NETWORK.output(&tsch_queue_get_time_source()->addr);
+}
+
 void command_input_get_metric()
 {
   mrp.flow_number = node_id;
@@ -1350,7 +1321,36 @@ void command_input_get_metric()
   handle_convergcast();
 }
 
-/* Behaviour for the CPAN when a metric is received. */
+/* Handle packet containing the ETX-metric of a node */
+int command_input_send_metric(uint16_t len, const linkaddr_t *src)
+{
+  /* Small optimization: only works for direct neighbors */
+  //In case we received the metric from our neighbor and he did not receive our ACK, he will resend the metric again -> Drop the packet here
+  //The first check is to see if this packet is a metric from the sender or a forward from a node further away. 
+  //In the second case, we might not have this neighbor and do not check if the packet should be dropet
+  struct tsch_neighbor * nbr = tsch_queue_get_nbr(src);
+  if(mrp.flow_number == src->u8[NODE_ID_INDEX] && nbr != NULL && nbr->etx_metric_received)
+  {
+    return 0;
+  }
+
+  //Set the flag for received metric
+  if(nbr != NULL)
+  {
+    nbr->etx_metric_received = 1;
+  }
+
+  // Received metric from other nodes
+  if (tsch_is_coordinator)
+  {
+    command_input_send_metric_CPAN(len, src);
+  }else
+  {
+    command_input_send_metric_Node(len, src);
+  }
+  return 1;
+}
+
 void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
 {
   if(metric_complete)
@@ -1416,7 +1416,6 @@ void command_input_send_metric_CPAN(uint16_t len, const linkaddr_t *src)
   }
 }
 
-/* Behaviour for a node that is not the CPAN if a metric arrives.*/
 void command_input_send_metric_Node(uint16_t len, const linkaddr_t *src)
 {
   masternet_len = len;
@@ -1433,38 +1432,6 @@ void command_input_send_metric_Node(uint16_t len, const linkaddr_t *src)
   }
 }
 
-/* Handle packet containing the ETX-metric of a node 
-  return 1 if the command could be handled, 0 otherwise*/
-int command_input_send_metric(uint16_t len, const linkaddr_t *src)
-{
-  /* Small optimization: only works for direct neighbors */
-  //In case we received the metric from our neighbor and he did not receive our ACK, he will resend the metric again -> Drop the packet here
-  //The first check is to see if this packet is a metric from the sender or a forward from a node further away. 
-  //In the second case, we might not have this neighbor and do not check if the packet should be dropet
-  struct tsch_neighbor * nbr = tsch_queue_get_nbr(src);
-  if(mrp.flow_number == src->u8[NODE_ID_INDEX] && nbr != NULL && nbr->etx_metric_received)
-  {
-    return 0;
-  }
-
-  //Set the flag for received metric
-  if(nbr != NULL)
-  {
-    nbr->etx_metric_received = 1;
-  }
-
-  // Received metric from other nodes
-  if (tsch_is_coordinator)
-  {
-    command_input_send_metric_CPAN(len, src);
-  }else
-  {
-    command_input_send_metric_Node(len, src);
-  }
-  return 1;
-}
-
-/* Handle the transitions between states after a callback */
 void transition_to_new_state_after_callback(enum commands command, int has_packets_to_forward)
 {
   //We only end up in this function after a succesfull transmission and acknowledgment of a packet
@@ -1568,7 +1535,6 @@ void transition_to_new_state_after_callback(enum commands command, int has_packe
   }
 }
 
-/* handle the transition between states after a packet input */
 int transition_to_new_state(enum commands command, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
   int result = 1;
@@ -1800,7 +1766,6 @@ int transition_to_new_state(enum commands command, uint16_t len, const linkaddr_
   return result;
 }
 
-/* Handle the incoming packets from TSCH */
 void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src, const linkaddr_t *dest)
 {
   //Ignore packets that have an invalid size
@@ -1814,7 +1779,6 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
   memcpy(&mrp, data, len);
   int command = mrp.data[0];
 
-  //In case this is an invalid command for the current state, return
   if(transition_to_new_state(command, len, src, dest) == -1)
   {
     LOG_DBG("Invalid command %d during state %d\n", command, current_state);
@@ -1823,7 +1787,61 @@ void master_routing_input(const void *data, uint16_t len, const linkaddr_t *src,
 }
 
 /*---------------------------Callback after sending packets and their main functions--------------------------------*/ 
-/* Handle callbacks for the schedule distribution */
+
+void master_routing_output_callback(void *data, int ret, int transmissions)
+{
+  //Dont react to packets during the installation and schedule installed state
+  //We will flush the queue during schedule installation leading to callbacks beeing fired
+  if(current_state == ST_IGNORE_COMMANDS || current_state == ST_SCHEDULE_INSTALLED)
+  {
+    return;
+  }
+
+  //Get the command from the packet that we sent
+  enum commands command = packetbuf_attr(PACKETBUF_ATTR_PACKET_COMMAND);
+
+  //Ignore the following command types
+  if(command == CM_DATA || command == CM_NO_COMMAND || command == CM_END)
+  {
+    return;
+  }
+
+  LOG_DBG("Sent Packet! Current state: %d with command %d and return value %d for receiver %i\n", current_state, command, ret, packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[NODE_ID_INDEX]);
+
+  //Handle the metric gathering callback once a packet is sent or an error on sent occured
+  if(command >= CM_ETX_METRIC_GET && command <= CM_ETX_METRIC_SEND)
+  {
+    handle_callback_commands_convergcast(command, ret, transmissions);
+  }
+
+  //Handle the metric distribution callback once a packet is sent or an error on sent occured
+  if(command >= CM_SCHEDULE && command <= CM_SCHEDULE_END)
+  {
+    handle_callback_commands_divergcast(command, ret, transmissions);
+  }
+
+  //Only for CPAN and Distributor node
+  if(command == CM_START_DIST_COMMIT)
+  {
+    if(ret != MAC_TX_OK){
+      //In the rare case where the acknoweldgement of the CPAN went missing and we try to resend the commit,
+      //while we already received the message from the distributor node, that he left the network, stop resending
+      if(current_state != ST_WAIT_FOR_DIST_COMMIT)
+      {
+        return;
+      }
+
+      setup_packet_configuration(tsch_queue_get_nbr(packetbuf_addr(PACKETBUF_ADDR_RECEIVER))->etx_link, CM_START_DIST_COMMIT, mrp.packet_number, 0);
+
+      masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
+      
+      NETSTACK_NETWORK.output(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
+    }else{
+      transition_to_new_state_after_callback(command, 0);
+    }
+  }
+}
+
 void handle_callback_commands_divergcast(enum commands command, int ret, int transmissions)
 {
   if(ret == MAC_TX_ERR)
@@ -1891,7 +1909,6 @@ void handle_callback_commands_divergcast(enum commands command, int ret, int tra
   transition_to_new_state_after_callback(command, 0);
 }
 
-/* Handle callbacks for the ETX-metric gathering */
 void handle_callback_commands_convergcast(enum commands command, int ret, int transmissions)
 {
   //In case of an error, retransmit the packet again
@@ -1938,73 +1955,19 @@ void handle_callback_commands_convergcast(enum commands command, int ret, int tr
   }
 }
 
-// Callback for sent packets over TSCH.
-void master_routing_output_callback(void *data, int ret, int transmissions)
-{
-  //Dont react to packets during the installation and schedule installed state
-  //We will flush the queue during schedule installation leading to callbacks beeing fired
-  if(current_state == ST_IGNORE_COMMANDS || current_state == ST_SCHEDULE_INSTALLED)
-  {
-    return;
-  }
-
-  //Get the command from the packet that we sent
-  enum commands command = packetbuf_attr(PACKETBUF_ATTR_PACKET_COMMAND);
-
-  //Ignore the following command types
-  if(command == CM_DATA || command == CM_NO_COMMAND || command == CM_END)
-  {
-    return;
-  }
-
-  LOG_DBG("Sent Packet! Current state: %d with command %d and return value %d for receiver %i\n", current_state, command, ret, packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[NODE_ID_INDEX]);
-
-  //Handle the metric gathering callback once a packet is sent or an error on sent occured
-  if(command >= CM_ETX_METRIC_GET && command <= CM_ETX_METRIC_SEND)
-  {
-    handle_callback_commands_convergcast(command, ret, transmissions);
-  }
-
-  //Handle the metric distribution callback once a packet is sent or an error on sent occured
-  if(command >= CM_SCHEDULE && command <= CM_SCHEDULE_END)
-  {
-    handle_callback_commands_divergcast(command, ret, transmissions);
-  }
-
-  //Only for CPAN and Distributor node
-  if(command == CM_START_DIST_COMMIT)
-  {
-    if(ret != MAC_TX_OK){
-      //In the rare case where the acknoweldgement of the CPAN went missing and we try to resend the commit,
-      //while we already received the message from the distributor node, that he left the network, stop resending
-      if(current_state != ST_WAIT_FOR_DIST_COMMIT)
-      {
-        return;
-      }
-
-      setup_packet_configuration(tsch_queue_get_nbr(packetbuf_addr(PACKETBUF_ADDR_RECEIVER))->etx_link, CM_START_DIST_COMMIT, mrp.packet_number, 0);
-
-      masternet_len = minimal_routing_packet_size + sizeof(uint8_t);
-      
-      NETSTACK_NETWORK.output(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    }else{
-      transition_to_new_state_after_callback(command, 0);
-    }
-  }
-}
-
 /*------------------------------------------------------------------------------------------------------*/ 
-master_packetbuf_config_t
-master_routing_sent_configuration()
+int master_routing_sendto(const void *data, uint16_t datalen, uint8_t receiver)
 {
-  return sent_packet_configuration;
+  if (receiver == get_node_receiver())
+  {
+    return master_routing_send(data, datalen);
+  }
+  else
+  {
+    return 0;
+  }
 }
-/*---------------------------------------------------------------------------*/
-int master_routing_configured()
-{
-  return current_state == ST_SCHEDULE_INSTALLED;
-}
-/*---------------------------------------------------------------------------*/
+
 int master_routing_send(const void *data, uint16_t datalen)
 {
   //In case we dont have the schedule configured, dont do anything
@@ -2117,19 +2080,18 @@ int master_routing_send(const void *data, uint16_t datalen)
     return 0;
   }
 }
-/*---------------------------------------------------------------------------*/
-int master_routing_sendto(const void *data, uint16_t datalen, uint8_t receiver)
+
+master_packetbuf_config_t master_routing_sent_configuration()
 {
-  if (receiver == get_node_receiver())
-  {
-    return master_routing_send(data, datalen);
-  }
-  else
-  {
-    return 0;
-  }
+  return sent_packet_configuration;
 }
-/*---------------------------------------------------------------------------*/
+
+int master_routing_configured()
+{
+  return current_state == ST_SCHEDULE_INSTALLED;
+}
+
+/*-------------------------     INIT MASTER     --------------------------------------------------*/
 void init_master_routing(void)
 {
 #if NETSTACK_CONF_WITH_MASTER_NET
@@ -2164,6 +2126,8 @@ void init_master_routing(void)
   masternet_set_input_callback(master_routing_input); // TODOLIV
   masternet_set_output_callback(master_routing_output_callback);
   masternet_set_config_callback(master_routing_sent_configuration);
+
+  /* Register TSCH callbacks */
   tsch_set_schedule_difference_callback(master_schedule_difference_callback);
   tsch_set_schedule_received_callback(master_schedule_received_callback);
 

@@ -39,10 +39,10 @@ PROCESS_THREAD(master_unicast_process, ev, data)
   static uint8_t own_receiver;
 
   PROCESS_BEGIN();
-
+#ifdef TESTBED_KIEL
   //Reserve enough memory for the schedule in the beginning. Increse this latter if not enough
   cfs_coffee_reserve(FILENAME, 10000);
-
+#endif
   /* Initialize Master */
   init_master_routing();
   master_routing_set_input_callback(input_callback);

@@ -15,15 +15,22 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "MASTER-S"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_DBG
 
+//Serial input process
 PROCESS(serial_line_schedule_input, "Master scheduler serial line input");
 
+//pt for the protothread
+static struct pt start_slot_operation_pt;
+
+//Bool if the schedule is loaded or not
 uint8_t schedule_loading = 1;
 
+//file descriptor
 int fd;
+
+//bytes in flash. used to identify when we are finished
 int bytes_in_flash;
-int idx_test;
 
 //Used to indicate if the file to read from is open
 uint8_t open = 0;
@@ -108,7 +115,7 @@ uint8_t write_to_flash_offset(uint8_t * data, int offset, uint8_t len)
   }
 
   if(cfs_seek(fd, offset, CFS_SEEK_SET) != offset) {
-    printf("seek failed! %i\n", offset);
+    LOG_ERR("seek failed! %i\n", offset);
     cfs_close(fd);
     open = 0;
     return 0;
@@ -118,7 +125,7 @@ uint8_t write_to_flash_offset(uint8_t * data, int offset, uint8_t len)
 
   int wrote_bytes = cfs_write(fd, data, len);
   if(wrote_bytes != len) {
-    LOG_ERR("Failed to write %d bytes to %s. Wrote %d\n", len, FILENAME, wrote_bytes);
+    LOG_ERR("Failed to write %d bytes. Wrote %d\n", len, wrote_bytes);
     cfs_close(fd);
     open = 0;
     return 0;
@@ -196,11 +203,14 @@ uint8_t read_from_flash_by_id(master_tsch_schedule_universall_config_t * config,
   uint8_t idx = 0;
   uint16_t read_schedule_bytes = 0;
   int total_bytes_read = 0;
+  int bytes_that_should_be_read = 0;
 
   do{
-    cfs_read(fd, &idx, 1);
+    read_schedule_bytes = cfs_read(fd, &idx, 1);
+    bytes_that_should_be_read++;
 
-    read_schedule_bytes = cfs_read(fd, &schedule->own_transmission_flow, 1);
+    read_schedule_bytes += cfs_read(fd, &schedule->own_transmission_flow, 1);
+    bytes_that_should_be_read++;
 
     //In this case own_transmission_flow = own_receiver = 0
     if(schedule->own_transmission_flow == 0)
@@ -208,24 +218,26 @@ uint8_t read_from_flash_by_id(master_tsch_schedule_universall_config_t * config,
       schedule->own_receiver = 0;
     }
     else{
-      cfs_read(fd, &schedule->own_receiver, 1);
+      read_schedule_bytes += cfs_read(fd, &schedule->own_receiver, 1);
+      bytes_that_should_be_read++;
     }
-    read_schedule_bytes++;
-
+    
     //Read links
     read_schedule_bytes += cfs_read(fd, &schedule->links_len, 1);
+    bytes_that_should_be_read++;
     read_schedule_bytes += cfs_read(fd, &schedule->links, schedule->links_len * sizeof(scheduled_link_t));
+    bytes_that_should_be_read += schedule->links_len * sizeof(scheduled_link_t);
 
     //Read MASTER_NUM_FLOW flow_forwards
     read_schedule_bytes += cfs_read(fd, &schedule->flow_forwards, 8);
+    bytes_that_should_be_read += 8;
 
     //Read MASTER_NUM_FLOW max_transmission
     read_schedule_bytes += cfs_read(fd, &schedule->max_transmission, 8);
+    bytes_that_should_be_read += 8;
 
-    int total_size = schedule->links_len * sizeof(scheduled_link_t) + 2 * MASTER_NUM_FLOWS + 3;
-
-    if(read_schedule_bytes != total_size) {
-      LOG_ERR("Failed to read %d bytes, read only %d", total_size, read_schedule_bytes);
+    if(read_schedule_bytes != bytes_that_should_be_read) {
+      LOG_INFO("Should read %d bytes; read %d bytes. End of schedule\n", bytes_that_should_be_read, read_schedule_bytes);
       cfs_close(fd);
       open = 0;
       return 0;
@@ -237,34 +249,23 @@ uint8_t read_from_flash_by_id(master_tsch_schedule_universall_config_t * config,
       LOG_DBG("Read %i for node %i. not our id, next\n", read_schedule_bytes, idx + 1);
     }
 
+    bytes_that_should_be_read = 0;
   }while(idx != id && total_bytes_read < bytes_in_flash);
-
-  if(schedule->links > 0){
-    LOG_DBG("Read %i bytes for id %i\n", read_schedule_bytes, id);
-  }else{
-    LOG_DBG("This node has nothing to do\n");
-  }
 
   cfs_close(fd);
   open = 0;
 
+  LOG_DBG("Read %i bytes for id %i\n", read_schedule_bytes, id);
   return 1;
 }
 
-void close_file()
-{
- cfs_close(fd);
-}
-
-static struct pt start_slot_operation_pt;
-
+//Start the serial input protothread
 PROCESS_THREAD(serial_line_schedule_input, ev, data)
 {
   PROCESS_BEGIN();
   LOG_INFO("Started listening\n");
   fd = 0;
   bytes_in_flash = 0;
-  idx_test= 0;
 
   while(schedule_loading) {
     PROCESS_YIELD();
@@ -322,19 +323,16 @@ int node_is_sender()
   return get_node_receiver() != 0;
 }
 
-//Flow_forwards array starts at 0 and flow index at 1, therefore access the correct forward by slotframe - 1
 uint8_t get_forward_dest_by_slotframe(master_tsch_schedule_t* schedule, uint8_t link_idx)
 {
   return schedule->flow_forwards[schedule->links[link_idx].slotframe_handle - 1];
 }
 
-//Flow_forwards array starts at 0 and flow index at 1, therefore access the correct forward by slotframe - 1
 uint8_t get_forward_dest(master_tsch_schedule_t* schedule, uint8_t flow)
 {
   return schedule->flow_forwards[flow - 1];
 }
 
-//max transmissions array starts at 0 and flow index at 1, therefore access the correct forward by slotframe - 1
 uint8_t get_max_transmissions(master_tsch_schedule_t* schedule, uint8_t flow)
 {
   return schedule->max_transmission[flow - 1];
