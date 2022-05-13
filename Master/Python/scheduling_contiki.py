@@ -319,7 +319,7 @@ class Contiki_schedule(object):
       slotframe_length += 1
 
     #schedule length anf slotframes
-    print(slotframe_length)
+    #print(slotframe_length)
     output_file_test.write(c_uint8(slotframe_length))
     output_file_test.write(c_uint8(len(self.schedule.flows)))
 
@@ -371,16 +371,16 @@ class Contiki_schedule(object):
     for node_id in [*self.node_schedule]:
       #which node this schedule is for
       output_file_test.write(c_uint8(node_id-1))
-      print("node {}".format(node_id - 1))
+      #print("node {}".format(node_id - 1))
       sending_flow_of_node = self.get_flow_from_sender(node_id)
       if sending_flow_of_node:
         output_file_test.write(c_uint8(sending_flow_of_node.flow_number))
         output_file_test.write(c_uint8(sending_flow_of_node.destination))
-        print("flow_number {} and destination {}".format(sending_flow_of_node.flow_number, sending_flow_of_node.destination))
+        #print("flow_number {} and destination {}".format(sending_flow_of_node.flow_number, sending_flow_of_node.destination))
       else:
         #if 0 is at own_transmission_flow -> we have no flow and no receiver
         output_file_test.write(c_uint8(0))
-        print("own_transmission_flow = 0")
+        #print("own_transmission_flow = 0")
 
       links = self.sorted_list_of_links(node_id)
       if len(links) > max_number_links_per_node:
@@ -400,7 +400,6 @@ class Contiki_schedule(object):
           change_neighbor_on_link_index.append( (link_index, link.neighbor) )# set the list for ch_idx and cha_idx_to
           last_neighbor = link.neighbor
 
-        #links after the
         output_file_test.write(c_uint8(link.flow_number))
         output_file_test.write(c_uint8(link.link_option))
         output_file_test.write(c_uint8(link.timeslot))
@@ -416,8 +415,8 @@ class Contiki_schedule(object):
           forward_to.append( (link.flow_number, link.neighbor) )
           if link.flow_number not in participating_flows_as_sender:
             participating_flows_as_sender.append(link.flow_number)
-      print("Flow, Option, Slot, Channel")
-      print("len {} = {}".format(len(links), string_out))
+      #print("Flow, Option, Slot, Channel")
+      #print("len {} = {}".format(len(links), string_out))
       forward_to = list(dict.fromkeys(forward_to))
       string_out = ""
       forward_to = dict(forward_to)
@@ -431,7 +430,7 @@ class Contiki_schedule(object):
           output_file_test.write(c_uint8(0))
           string_out += " {}".format(0)
 
-      print("Forward_to = {}".format(string_out))
+      #print("Forward_to = {}".format(string_out))
       string_out = ""
       counter = 0;
       for flow_pos in range(1, num_of_flows + 1):
@@ -448,7 +447,7 @@ class Contiki_schedule(object):
           output_file_test.write(c_uint8(0))
           string_out += " {}".format(0)
 
-      print("max_transmissions = {}".format(string_out))
+      #print("max_transmissions = {}".format(string_out))
     output_file_test.close()
 
     try:

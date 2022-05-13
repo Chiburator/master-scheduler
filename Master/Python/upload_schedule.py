@@ -1,7 +1,6 @@
 import socket
 import time
 
-C_DELIMITER = b'\xff'
 C_MESSSAGE_BEGIN = b'\x00'
 C_MESSSAGE_CONTINUE = b'\x01'
 C_MESSSAGE_END = b'\x02'
