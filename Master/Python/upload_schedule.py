@@ -28,8 +28,8 @@ def byte_to_ascii(byte):
   return char
 
 def upload_schedule_kiel(filepath, host, port):
-  #time.sleep(1/100)
   time.sleep(1)
+
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((host, port))
     with open(filepath, "rb") as file:
@@ -45,10 +45,8 @@ def upload_schedule_kiel(filepath, host, port):
         for byte in bytes:
           bytes_to_send += byte_to_ascii(byte)
 
-        print(bytes)
         print(bytes_to_send.encode('utf-8') + C_MESSAGE_LINE_END)
         s.send(bytes_to_send.encode('utf-8') + C_MESSAGE_LINE_END)
-
 
         bytes = file.read(bytes_to_write)
 
@@ -60,19 +58,12 @@ def upload_schedule_kiel(filepath, host, port):
         else:
           bytes = C_MESSSAGE_CONTINUE + bytes
         time.sleep(1 / 20)
-        #time.sleep(1/5)
+
       time.sleep(1 / 20)
-      #time.sleep(1 / 5)
+
     s.send(C_MESSAGE_LINE_END)
 
-    #while(True):
-    #  message = s.recv(1024)
-    #  print(message)
-    #s.close()
-
 def upload_schedule_cooja(filepath):
-
-  print("Lets go")
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect(('127.0.0.1', 60007))
     with open(filepath, "rb") as file:
@@ -88,8 +79,6 @@ def upload_schedule_cooja(filepath):
         for byte in bytes:
           bytes_to_send += byte_to_ascii(byte)
 
-        print(bytes)
-
         print(bytes_to_send.encode('utf-8'))
         s.send(bytes_to_send.encode('utf-8'))
 
@@ -98,7 +87,6 @@ def upload_schedule_cooja(filepath):
         if (not bytes):
           continue
 
-        #TODO wenn die letzte zeile = bytes_to_write, wird immer continue gesendet und nicht END
         if (len(bytes) != bytes_to_write or file.tell() == total_bytes):
           bytes = C_MESSSAGE_END + bytes
         else:
@@ -106,11 +94,6 @@ def upload_schedule_cooja(filepath):
         time.sleep(1 / 5)
       time.sleep(1)
     s.send(C_MESSAGE_LINE_END)
-
-    #while(True):
-    #  message = s.recv(1024)
-    #  print(message)
-    #s.close()
 
 if __name__ == '__main__':
   upload_schedule_cooja("meinTest.bin")
