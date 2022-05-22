@@ -53,14 +53,34 @@ The new version of MASTER is able to upload a schedule at runtime. There are two
 
     master_scheduler.py -dir "<FILE_PATH>" -f <FILE_NAME> ...
     
-Otherwise, MASTER will create a schedule by connecting to the __CPAN__ and reading the output. Once the __CPAN__ received the complete ETX-metric, MASTER will upload the schedule to the __distributor node__.
-The __CPAN__ and the __distributor node__ are currently hard-coded depending on the environment.
+Otherwise, MASTER will create a schedule by connecting to the __CPAN__ and reading the output. Once the __CPAN__ received the complete ETX-metric, MASTER will upload the schedule to the __distributor node__. The __CPAN__ and the __distributor node__ are currently hard-coded depending on the environment. 
+For Cooja, MASTER will connect to localhost at port 60007 to upload the schedule. Received the ETX-metric automatically from a simulated node in Cooja is not implemented.
+For the testbed at Kiel, MASTER will connect to node 8 as the __CPAN__ and node 7 as the __distributor node__. Changing the __CPAN__ or __distributor node__ in the configurations requires a change in the python file for MASTER.
 
-## MASTER in Cooja (Windows)
+## MASTER with Cooja (Windows)
 
 1. Start the docker container and Cooja
-2. Connect with a second cmd to the docker container 
+2. Connect with a second cmd to the docker container.
 
-    docker exec -it <ID> bash
- 
-3. Start a Simulation in Cooja and open a *Serial Socker Server* for the __distributor node__.
+
+        docker exec -it <ID> bash
+        
+3. Start a Simulation in Cooja and open a *Serial Socker Server* for the __distributor node__ with port 60007.
+4. Let the network run until node 7 stops participating in the Network. At this point, the ETX-metric was received.
+5. Downeload the file and start MASTER with the filepath and filename as a parameter. The filename for the output file has to be **meinTest.bin**, e.G.
+    
+    
+        -dir "<FILE_PATH>" -f <FILE_NAME>  -tb "cooja" -n_cooja 21 -flows "16,10" -with_cs -out "meinTest.bin" -m_len 50 -p_etx -p_prr -p_sched 
+    
+6. Runt the *upload_schedule.py* from the second cmd to upload the generated binary to the __distributor node__.
+    
+## MASTER with the testbed at Kiel
+    
+1. Start a test at the testbed
+2. Start MASTER without a filepath and filename, e.G.
+
+        python3 master_scheduler.py -n_cooja 20 -flows "18,4;2,21;8,20;9,1;6,17;16,10" -tb "kiel" -with_cs -out "../meinTest.bin" -m_len 101 -p_etx -p_prr -p_sched
+
+3. MASTER will connect to node 8 as the __CPAN__ and node 7 as the __distributor node__. Once the Schedule is received, MASTER will upload the schedule automatically and keep two threads open to both nodes. Once the test is finished, MASTER will terminated.
+
+The threads are required since the testbed pipes the output of the nodes to a netcat server. If the output is not read, the pipe operator will drop the output after 64 KB.
