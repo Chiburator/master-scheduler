@@ -41,15 +41,15 @@ Based on [Contiki-NG](https://github.com/contiki-ng/contiki-ng) and https://gith
 # Important Code changes:
 
 * **cfs-coffe-arch.h**: Append only mode was deactivated to allow writing to different file locations.
-* **master-unicast/project-conf.h**: The amount of neighbors changed to 16. Setting up a network with more than 16 neighbors at any node requieres a change at variable `NBR_TABLE_CONF_MAX_NEIGHBORS`. The payload size was decreased from 64 bytes to 59 bytes to allow overhearing during schedule distribution in unicasts
+* **master-unicast/project-conf.h**: The amount of neighbors changed to 16. Setting up a network with more than 16 neighbors at any node requires a change at variable `NBR_TABLE_CONF_MAX_NEIGHBORS`. The payload size was decreased from 64 bytes to 59 bytes to allow overhearing during schedule distribution in unicasts
 * **frame802154e-ie.c**: New information elements were added.
 * **master-schedule**: This module contains the process to receive serial line input on the distributor node and all read/write functions to access the flash memory. Reading the schedule and writing a new schedule to flash can be accomplished through this module. The bit-vector is implemented here as well.
-* **master-routing**: This module contains the logic to handle ETX-metric gathering and schedule distribution as well as the routing from the initial version.
-* **tsch.c & tsch-slot-operation**: Overhearing of unicast transmissions is implemented through this modules.
+* **master-routing**: This module contains the logic to handle ETX-metric gathering and schedule distribution, as well as the routing from the initial version.
+* **tsch.c & tsch-slot-operation**: Overhearing of unicast transmissions is implemented through these modules.
 
 # How to use the new version of MASTER
 
-The new version of MASTER is able to upload a schedule at runtime. There are two ways to generate and upload a schedule. If a file path and a file name is submited to MASTER as a parameter, MASTER will create a schedule from the file.
+The new version of MASTER is able to upload a schedule at runtime. There are two ways to generate and upload a schedule. If a filepath and a filename is submitted to MASTER as a parameter, MASTER will create a schedule from the file.
 
     master_scheduler.py -dir "<FILE_PATH>" -f <FILE_NAME> ...
     
@@ -65,9 +65,9 @@ For the testbed at Kiel, MASTER will connect to node 8 as the __CPAN__ and node 
 
         docker exec -it <ID> bash
         
-3. Start a Simulation in Cooja and open a *Serial Socker Server* for the __distributor node__ with port 60007.
+3. Start a Simulation in Cooja and open a *Serial Socket Server* for the __distributor node__ with port 60007.
 4. Let the network run until node 7 stops participating in the Network. At this point, the ETX-metric was received.
-5. Downeload the file and start MASTER with the filepath and filename as a parameter. The filename for the output file has to be **meinTest.bin**, e.G.
+5. Download the file and start MASTER with the filepath and filename as a parameter. The filename for the output file has to be **meinTest.bin**, e.G.
     
     
         -dir "<FILE_PATH>" -f <FILE_NAME>  -tb "cooja" -n_cooja 21 -flows "16,10" -with_cs -out "meinTest.bin" -m_len 50 -p_etx -p_prr -p_sched 
@@ -81,6 +81,6 @@ For the testbed at Kiel, MASTER will connect to node 8 as the __CPAN__ and node 
 
         python3 master_scheduler.py -n_cooja 20 -flows "18,4;2,21;8,20;9,1;6,17;16,10" -tb "kiel" -with_cs -out "../meinTest.bin" -m_len 101 -p_etx -p_prr -p_sched
 
-3. MASTER will connect to node 8 as the __CPAN__ and node 7 as the __distributor node__. Once the Schedule is received, MASTER will upload the schedule automatically and keep two threads open to both nodes. Once the test is finished, MASTER will terminated.
+3. MASTER will connect to node 8 as the __CPAN__ and node 7 as the __distributor node__. Once the Schedule is received, MASTER will upload the schedule automatically and keep two threads open to both nodes. Once the test is finished, MASTER will be terminated.
 
 The threads are required since the testbed pipes the output of the nodes to a netcat server. If the output is not read, the pipe operator will drop the output after 64 KB.
