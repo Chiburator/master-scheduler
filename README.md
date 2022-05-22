@@ -38,7 +38,7 @@ Based on [Contiki-NG](https://github.com/contiki-ng/contiki-ng) and https://gith
 
 # Important Code changes:
 
-* cfs-coffe-arch.h: Append only mode was deactiavted to allow writing to different file locations.
+* cfs-coffe-arch.h: Append only mode was deactivated to allow writing to different file locations.
 * master-unicast/project_conf.h: The amount of neighbors changed now to 16. Setting up a network with more than 16 neighbors at any node requieres a change at this variable. The payload size was decreased from 64 bytes to 59 bytes to allow overhearing during schedule distribution in unicasts
 * frame802154e-ie.c: New information elements were added.
 * master-schedule: This module contains the process to receive serial line input on the distributor node and all read/write functions to access the flash memory.
