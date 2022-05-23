@@ -49,13 +49,13 @@ Based on [Contiki-NG](https://github.com/contiki-ng/contiki-ng) and https://gith
 
 # How to use the new version of MASTER
 
-The new version of MASTER is able to upload a schedule at runtime. There are two ways to generate and upload a schedule. If a filepath and a filename is submitted to MASTER as a parameter, MASTER will create a schedule from the file.
+The new version of MASTER is able to upload a schedule at runtime. There are two ways to generate a schedule. If a file path and a filename is submitted to MASTER as a parameter, MASTER will create a schedule from a log file.
 
     master_scheduler.py -dir "<FILE_PATH>" -f <FILE_NAME> ...
     
 Otherwise, MASTER will create a schedule by connecting to the __CPAN__ and reading the output. Once the __CPAN__ received the complete ETX-metric, MASTER will upload the schedule to the __distributor node__. The __CPAN__ and the __distributor node__ are currently hard-coded depending on the environment. 
-For Cooja, MASTER will connect to localhost at port 60007 to upload the schedule. Received the ETX-metric automatically from a simulated node in Cooja is not implemented.
-For the testbed at Kiel, MASTER will connect to node 8 as the __CPAN__ and node 7 as the __distributor node__. Changing the __CPAN__ or __distributor node__ in the configurations requires a change in the python file for MASTER.
+For Cooja, MASTER will connect to localhost at port 60007 to upload the schedule. Received the ETX-metric automatically from a simulated node in Cooja is not implemented. A log file must be gathered from Cooja that MASTER will use as input.
+For the testbed at Kiel, MASTER will connect to node 8 as the __CPAN__ and node 7 as the __distributor node__. Changing the __CPAN__ or __distributor node__ in the configurations requires a change in the python file **master_scheduler.py** for MASTER.
 
 ## MASTER with Cooja (Windows)
 
