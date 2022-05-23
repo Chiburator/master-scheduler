@@ -41,11 +41,11 @@ Based on [Contiki-NG](https://github.com/contiki-ng/contiki-ng) and https://gith
 # Important Code changes:
 
 * **cfs-coffe-arch.h**: Append only mode was deactivated to allow writing to different file locations.
-* **master-unicast/project-conf.h**: The amount of neighbors changed to 16. Setting up a network with more than 16 neighbors at any node requires a change at variable `NBR_TABLE_CONF_MAX_NEIGHBORS`. The payload size was decreased from 64 bytes to 59 bytes to allow overhearing during schedule distribution in unicasts
+* **master-unicast/project-conf.h**: The amount of neighbors changed to 16. Setting up a network with more than 16 neighbors at any node requires a change at the variable `NBR_TABLE_CONF_MAX_NEIGHBORS`. The payload size was decreased from 64 bytes to 59 bytes to allow overhearing during schedule distribution in unicasts
 * **frame802154e-ie.c**: New information elements were added.
-* **master-schedule**: This module contains the process to receive serial line input on the distributor node and all read/write functions to access the flash memory. Reading the schedule and writing a new schedule to flash can be accomplished through this module. The bit-vector is implemented here as well.
-* **master-routing**: This module contains the logic to handle ETX-metric gathering and schedule distribution, as well as the routing from the initial version.
-* **tsch.c & tsch-slot-operation**: Overhearing of unicast transmissions is implemented through these modules.
+* **master-schedule.c**: This module contains the process to receive serial line input on the distributor node and all read/write functions to access the flash memory. Reading the schedule and writing a new schedule to flash can be accomplished through this module. The bit-vector is implemented here as well.
+* **master-routing.c**: This module contains the logic to handle ETX-metric gathering and schedule distribution, as well as the routing from the initial version.
+* **tsch.c & tsch-slot-operation.c**: Overhearing of unicast transmissions is implemented through these modules.
 
 # How to use the new version of MASTER
 
