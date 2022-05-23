@@ -67,7 +67,7 @@ For the testbed at Kiel, MASTER will connect to node 8 as the __CPAN__ and node 
         
 3. Start a Simulation in Cooja and open a *Serial Socket Server* for the __distributor node__ with port 60007.
 4. Let the network run until node 7 stops participating in the Network. At this point, the ETX-metric was received.
-5. Download the file and start MASTER with the filepath and filename as a parameter. The filename for the output file has to be **meinTest.bin**, e.G.
+5. Download the file and start MASTER with the file path and filename as a parameter. The filename for the output file has to be **meinTest.bin**, e.G.
     
     
         -dir "<FILE_PATH>" -f <FILE_NAME>  -tb "cooja" -n_cooja 21 -flows "16,10" -with_cs -out "meinTest.bin" -m_len 50 -p_etx -p_prr -p_sched 
